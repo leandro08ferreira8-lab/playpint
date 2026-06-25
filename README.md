@@ -21,6 +21,12 @@ Arrancar a app Expo:
 pnpm mobile:start
 ```
 
+Abrir no telemovel:
+
+1. Instalar `Expo Go`.
+2. Estar no mesmo Wi-Fi do PC.
+3. Ler o QR Code mostrado no terminal.
+
 Validar TypeScript:
 
 ```bash
