@@ -1,18 +1,24 @@
 export const colors = {
-  background: "#080A10",
-  surface: "#121722",
-  surfaceHot: "#201225",
-  surfaceLift: "#1A2130",
-  border: "#2B3445",
-  text: "#F7F9FF",
-  textSoft: "#AAB4C5",
-  muted: "#647084",
-  lime: "#B9FF38",
-  cyan: "#38D5FF",
-  pink: "#FF4FD8",
-  orange: "#FFB33F",
-  ink: "#111318",
-  inkSoft: "#30343A"
+  background: "#050403",
+  surface: "#140E09",
+  surfaceHot: "#2B1208",
+  surfaceLift: "#211409",
+  border: "#7B3E15",
+  borderSoft: "#3A2412",
+  text: "#FFF5DD",
+  textSoft: "#D8C6A5",
+  muted: "#8E7C62",
+  gold: "#FFC23A",
+  amber: "#FF9F1C",
+  orange: "#FF6B0A",
+  ember: "#E33A0B",
+  teal: "#28D8D2",
+  cream: "#FFF2C8",
+  lime: "#FFC23A",
+  cyan: "#28D8D2",
+  pink: "#FF6B0A",
+  ink: "#100B05",
+  inkSoft: "#3A260F"
 } as const;
 
 export const spacing = {
@@ -27,5 +33,6 @@ export const spacing = {
 export const radii = {
   sm: 6,
   md: 8,
+  lg: 14,
   full: 999
 } as const;

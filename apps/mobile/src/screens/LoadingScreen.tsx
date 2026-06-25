@@ -10,9 +10,9 @@ type LoadingScreenProps = {
 };
 
 const loadingSteps = [
-  { label: "Mesa pronta", Icon: UsersRound, color: colors.cyan },
-  { label: "QR Code armado", Icon: QrCode, color: colors.lime },
-  { label: "Jogos carregados", Icon: Sparkles, color: colors.pink }
+  { label: "Mesa pronta", Icon: UsersRound, color: colors.gold },
+  { label: "Codigo armado", Icon: QrCode, color: colors.orange },
+  { label: "Es Tu? carregado", Icon: Sparkles, color: colors.teal }
 ];
 
 export function LoadingScreen({ onDone }: LoadingScreenProps) {
@@ -88,7 +88,7 @@ export function LoadingScreen({ onDone }: LoadingScreenProps) {
           <Text style={styles.kicker}>Playpint</Text>
           <Text style={styles.title}>A preparar a mesa</Text>
           <Text style={styles.subtitle}>
-            A ligar amigos, sala e jogos para a primeira ronda.
+            A ligar amigos, votos e a primeira ronda de Es Tu?.
           </Text>
         </View>
 
@@ -97,8 +97,8 @@ export function LoadingScreen({ onDone }: LoadingScreenProps) {
             <Animated.View style={[styles.progressFill, { width: progressWidth }]} />
           </View>
           <View style={styles.loadingMeta}>
-            <Text style={styles.loadingLabel}>A carregar experiencia</Text>
-            <Text style={styles.loadingPercent}>rondas 15s</Text>
+            <Text style={styles.loadingLabel}>A aquecer a sala</Text>
+            <Text style={styles.loadingPercent}>15s por voto</Text>
           </View>
         </View>
 
@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   halo: {
-    backgroundColor: colors.pink,
+    backgroundColor: colors.orange,
     borderRadius: radii.full,
     height: 154,
     position: "absolute",
@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
   },
   logoMark: {
     alignItems: "center",
-    backgroundColor: colors.lime,
+    backgroundColor: colors.gold,
     borderRadius: radii.full,
     height: 92,
     justifyContent: "center",
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
     width: 92
   },
   kicker: {
-    color: colors.cyan,
+    color: colors.gold,
     fontSize: 13,
     fontWeight: "900",
     letterSpacing: 0,
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     overflow: "hidden"
   },
   progressFill: {
-    backgroundColor: colors.lime,
+    backgroundColor: colors.gold,
     borderRadius: radii.full,
     height: "100%"
   },
@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
     fontWeight: "800"
   },
   loadingPercent: {
-    color: colors.cyan,
+    color: colors.orange,
     fontSize: 13,
     fontWeight: "900"
   },

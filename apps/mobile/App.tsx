@@ -1,8 +1,10 @@
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useMemo, useState } from "react";
 import {
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -11,32 +13,78 @@ import {
   View
 } from "react-native";
 import {
-  Camera,
   ChevronLeft,
   CirclePlay,
   Crown,
-  Dice5,
-  Gamepad2,
   LogIn,
   QrCode,
+  Sparkles,
   UsersRound,
   Vote
 } from "lucide-react-native";
 
-import { ActionButton } from "./src/components/ActionButton";
-import { GameModeRow } from "./src/components/GameModeRow";
-import { PlayerPill } from "./src/components/PlayerPill";
-import { gameModes } from "./src/data/gameModes";
 import { LoadingScreen } from "./src/screens/LoadingScreen";
 import { colors, radii, spacing } from "./src/theme";
-import type { AppScreen, LobbyRole } from "./src/types";
+import type { AppScreen, IconComponent, LobbyRole } from "./src/types";
 
-const samplePlayers = [
-  { name: "Leo", status: "Host" },
-  { name: "Santi", status: "Ready" },
-  { name: "Marta", status: "Avatar" },
-  { name: "Rita", status: "Ready" }
+const barBackground = require("./assets/bar-table-background.png");
+
+const samplePlayers = ["Leo", "Santi", "Marta", "Rita"];
+
+const esTuQuestions = [
+  "Quem e mais provavel que mande mensagem ao ex depois da meia-noite?",
+  "Quem e mais provavel que conte uma historia e exagere metade?",
+  "Quem e mais provavel que chegue atrasado e ainda culpe o transito?",
+  "Quem e mais provavel que ganhe isto sem admitir que queria ganhar?"
 ];
+
+type PosterButtonProps = {
+  icon: IconComponent;
+  label: string;
+  helper: string;
+  variant?: "gold" | "ember" | "ghost";
+  onPress: () => void;
+};
+
+function PosterButton({ icon: Icon, label, helper, variant = "gold", onPress }: PosterButtonProps) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.posterButton,
+        variant === "ember" && styles.posterButtonEmber,
+        variant === "ghost" && styles.posterButtonGhost,
+        pressed && styles.posterButtonPressed
+      ]}
+    >
+      <View style={[styles.posterIcon, variant === "ember" && styles.posterIconEmber]}>
+        <Icon color={variant === "ghost" ? colors.gold : colors.ink} size={34} strokeWidth={3} />
+      </View>
+      <View style={styles.posterButtonCopy}>
+        <Text style={[styles.posterButtonLabel, variant === "ghost" && styles.posterButtonLabelGhost]}>
+          {label}
+        </Text>
+        <Text style={[styles.posterButtonHelper, variant === "ghost" && styles.posterButtonHelperGhost]}>
+          {helper}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
+type BackButtonProps = {
+  onPress: () => void;
+};
+
+function BackButton({ onPress }: BackButtonProps) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={styles.backButton}>
+      <ChevronLeft color={colors.gold} size={22} strokeWidth={3} />
+      <Text style={styles.backButtonText}>Voltar</Text>
+    </Pressable>
+  );
+}
 
 export default function App() {
   const [bootComplete, setBootComplete] = useState(false);
@@ -44,452 +92,650 @@ export default function App() {
   const [roomName, setRoomName] = useState("Mesa 7");
   const [roomCode, setRoomCode] = useState("4829");
   const [nickname, setNickname] = useState("");
-  const [punishment, setPunishment] = useState("Ultimo paga a proxima ronda");
-  const [selectedMode, setSelectedMode] = useState(gameModes[0]?.id ?? "would-you-rather");
   const [lobbyRole, setLobbyRole] = useState<LobbyRole>("host");
+  const [roundIndex, setRoundIndex] = useState(0);
+  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
 
-  const selectedGame = useMemo(
-    () => gameModes.find((mode) => mode.id === selectedMode) ?? gameModes[0],
-    [selectedMode]
+  const currentQuestion = useMemo(
+    () => esTuQuestions[roundIndex % esTuQuestions.length],
+    [roundIndex]
   );
+
+  const finishBoot = useCallback(() => {
+    setBootComplete(true);
+  }, []);
 
   function openLobby(role: LobbyRole) {
     setLobbyRole(role);
     setScreen("lobby");
   }
 
-  const finishBoot = useCallback(() => {
-    setBootComplete(true);
-  }, []);
+  function startRound() {
+    setSelectedPlayer(null);
+    setScreen("round");
+  }
+
+  function nextRound() {
+    setSelectedPlayer(null);
+    setRoundIndex((value) => value + 1);
+  }
 
   if (!bootComplete) {
     return <LoadingScreen onDone={finishBoot} />;
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <ImageBackground source={barBackground} resizeMode="cover" style={styles.background}>
       <StatusBar style="light" />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.keyboard}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+      <View pointerEvents="none" style={styles.scrim} />
+      <SafeAreaView style={styles.safeArea}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={styles.keyboard}
         >
-          {screen !== "home" ? (
-            <ActionButton
-              icon={ChevronLeft}
-              label="Voltar"
-              tone="ghost"
-              compact
-              onPress={() => setScreen("home")}
-            />
-          ) : null}
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {screen !== "home" ? <BackButton onPress={() => setScreen("home")} /> : null}
 
-          {screen === "home" ? (
-            <View style={styles.screenGap}>
-              <View style={styles.hero}>
-                <View style={styles.logoMark}>
-                  <Gamepad2 color={colors.ink} size={28} strokeWidth={2.6} />
-                </View>
-                <Text style={styles.kicker}>Jogos locais para grupos</Text>
-                <Text style={styles.title}>Playpint</Text>
-                <Text style={styles.subtitle}>
-                  Cria uma sala, junta os amigos por QR Code e troca de jogo entre rondas.
-                </Text>
-              </View>
-
-              <View style={styles.actionStack}>
-                <ActionButton
-                  icon={Crown}
-                  label="Criar sala"
-                  helper="Host controla rondas e jogadores"
-                  onPress={() => setScreen("host")}
-                />
-                <ActionButton
-                  icon={LogIn}
-                  label="Entrar numa sala"
-                  helper="Codigo, QR Code e nickname"
-                  tone="secondary"
-                  onPress={() => setScreen("join")}
-                />
-                <ActionButton
-                  icon={Dice5}
-                  label="Ver modos de jogo"
-                  tone="quiet"
-                  onPress={() => setScreen("modes")}
-                />
-              </View>
-
-              <View style={styles.statusStrip}>
-                <Text style={styles.statusNumber}>15s</Text>
-                <Text style={styles.statusCopy}>votacao entre rondas</Text>
-                <View style={styles.statusDivider} />
-                <Text style={styles.statusNumber}>4</Text>
-                <Text style={styles.statusCopy}>jogos no MVP</Text>
-              </View>
-            </View>
-          ) : null}
-
-          {screen === "host" ? (
-            <View style={styles.screenGap}>
-              <View>
-                <Text style={styles.sectionLabel}>Host</Text>
-                <Text style={styles.heading}>Prepara a sala</Text>
-                <Text style={styles.bodyText}>
-                  Define o nome da sala, escolhe o primeiro jogo e combina a consequencia.
-                </Text>
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.inputLabel}>Nome da sala</Text>
-                <TextInput
-                  value={roomName}
-                  onChangeText={setRoomName}
-                  placeholder="Ex: Mesa 7"
-                  placeholderTextColor={colors.muted}
-                  style={styles.input}
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.inputLabel}>Primeiro modo</Text>
-                <View style={styles.modeList}>
-                  {gameModes.slice(0, 4).map((mode) => (
-                    <GameModeRow
-                      key={mode.id}
-                      mode={mode}
-                      selected={mode.id === selectedMode}
-                      onPress={() => setSelectedMode(mode.id)}
-                    />
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.inputLabel}>Consequencia do ultimo</Text>
-                <TextInput
-                  value={punishment}
-                  onChangeText={setPunishment}
-                  placeholder="Ex: escolhe a musica da vergonha"
-                  placeholderTextColor={colors.muted}
-                  style={[styles.input, styles.textArea]}
-                  multiline
-                />
-              </View>
-
-              <ActionButton
-                icon={QrCode}
-                label="Gerar codigo e lobby"
-                helper={`Sala ${roomName || "sem nome"} com ${selectedGame?.title}`}
-                onPress={() => openLobby("host")}
-              />
-            </View>
-          ) : null}
-
-          {screen === "join" ? (
-            <View style={styles.screenGap}>
-              <View>
-                <Text style={styles.sectionLabel}>Join</Text>
-                <Text style={styles.heading}>Entra na sala</Text>
-                <Text style={styles.bodyText}>
-                  Usa o codigo do host ou le o QR Code quando a camera ficar ligada.
-                </Text>
-              </View>
-
-              <View style={styles.joinGrid}>
-                <View style={styles.codeBox}>
-                  <QrCode color={colors.cyan} size={46} strokeWidth={2.4} />
-                  <Text style={styles.codeCaption}>QR Code em breve</Text>
-                </View>
-                <View style={styles.codeBox}>
-                  <Camera color={colors.pink} size={46} strokeWidth={2.4} />
-                  <Text style={styles.codeCaption}>Avatar depois de entrar</Text>
-                </View>
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.inputLabel}>Codigo da sala</Text>
-                <TextInput
-                  value={roomCode}
-                  onChangeText={setRoomCode}
-                  keyboardType="number-pad"
-                  maxLength={4}
-                  placeholder="4829"
-                  placeholderTextColor={colors.muted}
-                  style={styles.input}
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.inputLabel}>Nickname</Text>
-                <TextInput
-                  value={nickname}
-                  onChangeText={setNickname}
-                  placeholder="Como te chamas?"
-                  placeholderTextColor={colors.muted}
-                  style={styles.input}
-                />
-              </View>
-
-              <ActionButton
-                icon={LogIn}
-                label="Entrar no lobby"
-                helper={nickname ? `A entrar como ${nickname}` : "Podes escolher nickname depois"}
-                onPress={() => openLobby("client")}
-              />
-            </View>
-          ) : null}
-
-          {screen === "lobby" ? (
-            <View style={styles.screenGap}>
-              <View style={styles.lobbyHeader}>
-                <View>
-                  <Text style={styles.sectionLabel}>
-                    {lobbyRole === "host" ? "Lobby do host" : "Lobby do jogador"}
+            {screen === "home" ? (
+              <View style={styles.homeScreen}>
+                <View style={styles.brandArea}>
+                  <View style={styles.bottleCap}>
+                    <Text style={styles.bottleCapText}>P</Text>
+                  </View>
+                  <Text style={styles.logoText}>Playpint</Text>
+                  <Text style={styles.heroHeadline}>
+                    Junta <Text style={styles.heroHot}>a mesa</Text>
                   </Text>
-                  <Text style={styles.heading}>{roomName || "Sala Playpint"}</Text>
-                </View>
-                <View style={styles.roomCodePill}>
-                  <Text style={styles.roomCodeLabel}>Codigo</Text>
-                  <Text style={styles.roomCodeValue}>{roomCode}</Text>
-                </View>
-              </View>
-
-              <View style={styles.qrPanel}>
-                <QrCode color={colors.ink} size={70} strokeWidth={2.8} />
-                <View style={styles.qrCopy}>
-                  <Text style={styles.qrTitle}>Mostra isto aos jogadores</Text>
-                  <Text style={styles.qrSubtitle}>
-                    O QR Code real entra quando ligarmos camera e backend.
+                  <Text style={styles.heroSubtitle}>
+                    O jogo e simples: uma pergunta, todos votam, alguem fica marcado.
                   </Text>
                 </View>
-              </View>
 
-              <View style={styles.playersHeader}>
-                <Text style={styles.inputLabel}>Jogadores</Text>
-                <Text style={styles.playerCount}>{samplePlayers.length}/8</Text>
-              </View>
-
-              <View style={styles.playerList}>
-                {samplePlayers.map((player) => (
-                  <PlayerPill key={player.name} name={player.name} status={player.status} />
-                ))}
-              </View>
-
-              <View style={styles.nextGamePanel}>
-                <Vote color={colors.lime} size={28} strokeWidth={2.6} />
-                <View style={styles.nextGameCopy}>
-                  <Text style={styles.nextGameTitle}>{selectedGame?.title}</Text>
-                  <Text style={styles.nextGameSubtitle}>
-                    Depois de cada ronda, 15 segundos para votar no proximo jogo.
-                  </Text>
+                <View style={styles.infoRow}>
+                  <View style={styles.infoChip}>
+                    <Vote color={colors.orange} size={28} strokeWidth={3} />
+                    <View style={styles.infoChipCopy}>
+                      <Text style={styles.infoNumber}>15s</Text>
+                      <Text style={styles.infoLabel}>para votar</Text>
+                    </View>
+                  </View>
+                  <View style={[styles.infoChip, styles.infoChipTeal]}>
+                    <Sparkles color={colors.teal} size={28} strokeWidth={3} />
+                    <View style={styles.infoChipCopy}>
+                      <Text style={styles.infoNumber}>1 jogo</Text>
+                      <Text style={styles.infoLabel}>Es Tu?</Text>
+                    </View>
+                  </View>
                 </View>
-              </View>
 
-              {lobbyRole === "host" ? (
-                <ActionButton
-                  icon={CirclePlay}
-                  label="Comecar partida"
-                  helper="Host inicia quando todos estiverem prontos"
-                  onPress={() => setScreen("modes")}
-                />
-              ) : (
-                <ActionButton
-                  icon={UsersRound}
-                  label="Aguardar host"
-                  helper="O host controla o inicio da ronda"
-                  tone="secondary"
-                  onPress={() => setScreen("modes")}
-                />
-              )}
-            </View>
-          ) : null}
-
-          {screen === "modes" ? (
-            <View style={styles.screenGap}>
-              <View>
-                <Text style={styles.sectionLabel}>Modos</Text>
-                <Text style={styles.heading}>Escolhe o proximo jogo</Text>
-                <Text style={styles.bodyText}>
-                  Esta lista e o primeiro sitio ideal para o Santi trabalhar no frontend.
-                </Text>
-              </View>
-
-              <View style={styles.modeList}>
-                {gameModes.map((mode) => (
-                  <GameModeRow
-                    key={mode.id}
-                    mode={mode}
-                    selected={mode.id === selectedMode}
-                    onPress={() => setSelectedMode(mode.id)}
+                <View style={styles.actionStack}>
+                  <PosterButton
+                    icon={UsersRound}
+                    label="CRIAR SALA"
+                    helper="abre o lobby e mostra o codigo"
+                    onPress={() => setScreen("host")}
                   />
-                ))}
-              </View>
+                  <PosterButton
+                    icon={LogIn}
+                    label="ENTRAR NUMA SALA"
+                    helper="usa codigo ou QR do host"
+                    variant="ember"
+                    onPress={() => setScreen("join")}
+                  />
+                </View>
 
-              <View style={styles.votePreview}>
-                <Text style={styles.voteTimer}>15</Text>
-                <View style={styles.voteCopy}>
-                  <Text style={styles.voteTitle}>Votacao rapida</Text>
-                  <Text style={styles.voteSubtitle}>
-                    Percentagens e nomes dos votos entram no jogo Voce Prefere.
-                  </Text>
+                <View style={styles.footerBadge}>
+                  <Text style={styles.footerBadgeTitle}>Boas escolhas</Text>
+                  <Text style={styles.footerBadgeText}>melhores historias</Text>
                 </View>
               </View>
-            </View>
-          ) : null}
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+            ) : null}
+
+            {screen === "host" ? (
+              <View style={styles.screenGap}>
+                <View style={styles.sectionIntro}>
+                  <Text style={styles.sectionLabel}>Criar sala</Text>
+                  <Text style={styles.heading}>Prepara o Es Tu?</Text>
+                  <Text style={styles.bodyText}>
+                    Mete o nome da mesa e gera o codigo para os teus amigos entrarem.
+                  </Text>
+                </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.inputLabel}>Nome da sala</Text>
+                  <TextInput
+                    value={roomName}
+                    onChangeText={setRoomName}
+                    placeholder="Ex: Mesa 7"
+                    placeholderTextColor={colors.muted}
+                    style={styles.input}
+                  />
+                </View>
+
+                <View style={styles.rulePanel}>
+                  <View style={styles.ruleIcon}>
+                    <Vote color={colors.ink} size={26} strokeWidth={3} />
+                  </View>
+                  <View style={styles.ruleCopy}>
+                    <Text style={styles.ruleTitle}>Regra base</Text>
+                    <Text style={styles.ruleText}>
+                      O host le a pergunta, todos votam numa pessoa e a mesa decide a consequencia.
+                    </Text>
+                  </View>
+                </View>
+
+                <PosterButton
+                  icon={QrCode}
+                  label="GERAR CODIGO"
+                  helper={`sala ${roomName || "sem nome"} pronta para jogar`}
+                  onPress={() => openLobby("host")}
+                />
+              </View>
+            ) : null}
+
+            {screen === "join" ? (
+              <View style={styles.screenGap}>
+                <View style={styles.sectionIntro}>
+                  <Text style={styles.sectionLabel}>Entrar</Text>
+                  <Text style={styles.heading}>Junta-te a mesa</Text>
+                  <Text style={styles.bodyText}>
+                    Escreve o codigo da sala e o nome que vai aparecer nas votacoes.
+                  </Text>
+                </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.inputLabel}>Codigo da sala</Text>
+                  <TextInput
+                    value={roomCode}
+                    onChangeText={setRoomCode}
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    placeholder="4829"
+                    placeholderTextColor={colors.muted}
+                    style={styles.inputBig}
+                  />
+                </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.inputLabel}>Nickname</Text>
+                  <TextInput
+                    value={nickname}
+                    onChangeText={setNickname}
+                    placeholder="Como te chamas?"
+                    placeholderTextColor={colors.muted}
+                    style={styles.input}
+                  />
+                </View>
+
+                <PosterButton
+                  icon={LogIn}
+                  label="ENTRAR"
+                  helper={nickname ? `vais aparecer como ${nickname}` : "nickname pode ficar para depois"}
+                  variant="ember"
+                  onPress={() => openLobby("client")}
+                />
+              </View>
+            ) : null}
+
+            {screen === "lobby" ? (
+              <View style={styles.screenGap}>
+                <View style={styles.lobbyHeader}>
+                  <View style={styles.lobbyTitleBlock}>
+                    <Text style={styles.sectionLabel}>
+                      {lobbyRole === "host" ? "Lobby do host" : "Lobby do jogador"}
+                    </Text>
+                    <Text style={styles.heading}>{roomName || "Sala Playpint"}</Text>
+                  </View>
+                  <View style={styles.roomCodePill}>
+                    <Text style={styles.roomCodeLabel}>Codigo</Text>
+                    <Text style={styles.roomCodeValue}>{roomCode}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.qrPanel}>
+                  <QrCode color={colors.ink} size={70} strokeWidth={3} />
+                  <View style={styles.qrCopy}>
+                    <Text style={styles.qrTitle}>Mostra isto aos jogadores</Text>
+                    <Text style={styles.qrSubtitle}>
+                      O QR real entra quando ligarmos backend. Para ja, o codigo manda.
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.playersPanel}>
+                  <View style={styles.playersHeader}>
+                    <Text style={styles.inputLabel}>Jogadores</Text>
+                    <Text style={styles.playerCount}>{samplePlayers.length}/8</Text>
+                  </View>
+                  <View style={styles.playerGrid}>
+                    {samplePlayers.map((player, index) => (
+                      <View key={player} style={styles.playerCard}>
+                        <Text style={styles.playerAvatar}>{player.slice(0, 1)}</Text>
+                        <Text style={styles.playerName}>{player}</Text>
+                        <Text style={styles.playerStatus}>{index === 0 ? "host" : "pronto"}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+
+                <View style={styles.nextGamePanel}>
+                  <Crown color={colors.gold} size={30} strokeWidth={3} />
+                  <View style={styles.nextGameCopy}>
+                    <Text style={styles.nextGameTitle}>Es Tu?</Text>
+                    <Text style={styles.nextGameSubtitle}>
+                      Perguntas de acusacao amigavel, votos rapidos e discussao garantida.
+                    </Text>
+                  </View>
+                </View>
+
+                <PosterButton
+                  icon={CirclePlay}
+                  label={lobbyRole === "host" ? "COMECAR RONDA" : "TESTAR RONDA"}
+                  helper={lobbyRole === "host" ? "host inicia quando todos estiverem prontos" : "mock local ate ligarmos multiplayer"}
+                  onPress={startRound}
+                />
+              </View>
+            ) : null}
+
+            {screen === "round" ? (
+              <View style={styles.screenGap}>
+                <View style={styles.roundHeader}>
+                  <View>
+                    <Text style={styles.sectionLabel}>Ronda {roundIndex + 1}</Text>
+                    <Text style={styles.heading}>Es Tu?</Text>
+                  </View>
+                  <View style={styles.timerPill}>
+                    <Text style={styles.timerValue}>15</Text>
+                    <Text style={styles.timerLabel}>seg</Text>
+                  </View>
+                </View>
+
+                <View style={styles.questionCard}>
+                  <Text style={styles.questionEyebrow}>A mesa responde</Text>
+                  <Text style={styles.questionText}>{currentQuestion}</Text>
+                </View>
+
+                <View style={styles.votePanel}>
+                  <Text style={styles.inputLabel}>Escolhe uma pessoa</Text>
+                  <View style={styles.voteGrid}>
+                    {samplePlayers.map((player) => {
+                      const selected = selectedPlayer === player;
+                      return (
+                        <Pressable
+                          accessibilityRole="button"
+                          key={player}
+                          onPress={() => setSelectedPlayer(player)}
+                          style={[styles.voteCard, selected && styles.voteCardSelected]}
+                        >
+                          <Text style={[styles.voteAvatar, selected && styles.voteAvatarSelected]}>
+                            {player.slice(0, 1)}
+                          </Text>
+                          <Text style={[styles.voteName, selected && styles.voteNameSelected]}>
+                            {player}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+
+                <View style={styles.resultPanel}>
+                  <Text style={styles.resultTitle}>
+                    {selectedPlayer ? `${selectedPlayer} esta marcado` : "Votos ainda escondidos"}
+                  </Text>
+                  <Text style={styles.resultText}>
+                    {selectedPlayer
+                      ? "Depois mostramos percentagens, empate e animacao de resultado."
+                      : "Toca num nome para simular como a votacao vai funcionar."}
+                  </Text>
+                </View>
+
+                <PosterButton
+                  icon={Vote}
+                  label="NOVA PERGUNTA"
+                  helper="avanca para a proxima ronda"
+                  variant="ember"
+                  onPress={nextRound}
+                />
+              </View>
+            ) : null}
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  background: {
     flex: 1,
     backgroundColor: colors.background
+  },
+  scrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(5, 4, 3, 0.48)"
+  },
+  safeArea: {
+    flex: 1
   },
   keyboard: {
     flex: 1
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.lg
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl,
+    paddingTop: spacing.md
   },
-  screenGap: {
-    gap: spacing.xl
+  homeScreen: {
+    flexGrow: 1,
+    gap: spacing.xl,
+    justifyContent: "space-between",
+    minHeight: 740,
+    paddingBottom: spacing.md,
+    paddingTop: spacing.xxl
   },
-  hero: {
-    gap: spacing.md,
-    paddingTop: spacing.xl
-  },
-  logoMark: {
+  brandArea: {
     alignItems: "center",
-    backgroundColor: colors.lime,
+    gap: spacing.sm
+  },
+  bottleCap: {
+    alignItems: "center",
+    backgroundColor: colors.ink,
+    borderColor: colors.gold,
     borderRadius: radii.full,
-    height: 58,
+    borderWidth: 4,
+    height: 92,
     justifyContent: "center",
-    width: 58
+    shadowColor: colors.gold,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.55,
+    shadowRadius: 18,
+    width: 92
   },
-  kicker: {
-    color: colors.lime,
-    fontSize: 13,
-    fontWeight: "800",
-    letterSpacing: 0,
-    textTransform: "uppercase"
-  },
-  title: {
-    color: colors.text,
+  bottleCapText: {
+    color: colors.gold,
     fontSize: 54,
     fontWeight: "900",
-    letterSpacing: 0,
-    lineHeight: 58
+    lineHeight: 62,
+    textShadowColor: colors.orange,
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 0
   },
-  subtitle: {
-    color: colors.textSoft,
-    fontSize: 17,
+  logoText: {
+    color: colors.gold,
+    fontSize: 64,
+    fontWeight: "900",
+    letterSpacing: 0,
+    lineHeight: 70,
+    textShadowColor: colors.ink,
+    textShadowOffset: { width: 0, height: 4 },
+    textShadowRadius: 0
+  },
+  heroHeadline: {
+    color: colors.cream,
+    fontSize: 48,
+    fontWeight: "900",
+    letterSpacing: 0,
+    lineHeight: 54,
+    textAlign: "center",
+    textShadowColor: colors.ink,
+    textShadowOffset: { width: 0, height: 4 },
+    textShadowRadius: 0
+  },
+  heroHot: {
+    color: colors.orange
+  },
+  heroSubtitle: {
+    color: colors.cream,
+    fontSize: 18,
+    fontWeight: "800",
     lineHeight: 25,
-    maxWidth: 330
+    maxWidth: 330,
+    textAlign: "center"
+  },
+  infoRow: {
+    flexDirection: "row",
+    gap: spacing.md
+  },
+  infoChip: {
+    alignItems: "center",
+    backgroundColor: "rgba(16, 11, 5, 0.78)",
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    flex: 1,
+    flexDirection: "row",
+    gap: spacing.sm,
+    minHeight: 78,
+    padding: spacing.md
+  },
+  infoChipTeal: {
+    borderColor: colors.teal
+  },
+  infoChipCopy: {
+    flex: 1
+  },
+  infoNumber: {
+    color: colors.cream,
+    fontSize: 24,
+    fontWeight: "900",
+    letterSpacing: 0
+  },
+  infoLabel: {
+    color: colors.textSoft,
+    fontSize: 13,
+    fontWeight: "800",
+    lineHeight: 17
   },
   actionStack: {
     gap: spacing.md
   },
-  statusStrip: {
+  posterButton: {
     alignItems: "center",
+    backgroundColor: colors.gold,
+    borderColor: "#FFE079",
+    borderRadius: radii.lg,
+    borderWidth: 2,
+    elevation: 8,
+    flexDirection: "row",
+    gap: spacing.md,
+    minHeight: 104,
+    paddingHorizontal: spacing.lg,
+    shadowColor: colors.orange,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10
+  },
+  posterButtonEmber: {
+    backgroundColor: colors.ember,
+    borderColor: colors.orange,
+    shadowColor: colors.ember
+  },
+  posterButtonGhost: {
+    backgroundColor: "rgba(16, 11, 5, 0.82)",
     borderColor: colors.border,
+    minHeight: 62
+  },
+  posterButtonPressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.98 }]
+  },
+  posterIcon: {
+    alignItems: "center",
+    backgroundColor: "rgba(16, 11, 5, 0.16)",
     borderRadius: radii.md,
+    height: 58,
+    justifyContent: "center",
+    width: 58
+  },
+  posterIconEmber: {
+    backgroundColor: "rgba(255, 242, 200, 0.18)"
+  },
+  posterButtonCopy: {
+    flex: 1
+  },
+  posterButtonLabel: {
+    color: colors.ink,
+    fontSize: 30,
+    fontWeight: "900",
+    letterSpacing: 0,
+    lineHeight: 34
+  },
+  posterButtonLabelGhost: {
+    color: colors.gold,
+    fontSize: 20,
+    lineHeight: 24
+  },
+  posterButtonHelper: {
+    color: colors.inkSoft,
+    fontSize: 13,
+    fontWeight: "900",
+    lineHeight: 17,
+    marginTop: spacing.xs,
+    textTransform: "uppercase"
+  },
+  posterButtonHelperGhost: {
+    color: colors.textSoft
+  },
+  footerBadge: {
+    alignItems: "center",
+    alignSelf: "center",
+    backgroundColor: "rgba(16, 11, 5, 0.72)",
+    borderColor: colors.border,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    minWidth: 214,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md
+  },
+  footerBadgeTitle: {
+    color: colors.gold,
+    fontSize: 14,
+    fontWeight: "900",
+    letterSpacing: 0,
+    textTransform: "uppercase"
+  },
+  footerBadgeText: {
+    color: colors.textSoft,
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0,
+    marginTop: 2,
+    textTransform: "uppercase"
+  },
+  backButton: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(16, 11, 5, 0.82)",
+    borderColor: colors.border,
+    borderRadius: radii.full,
     borderWidth: 1,
     flexDirection: "row",
-    gap: spacing.sm,
-    padding: spacing.md
+    gap: spacing.xs,
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm
   },
-  statusNumber: {
-    color: colors.cyan,
-    fontSize: 23,
+  backButtonText: {
+    color: colors.gold,
+    fontSize: 14,
     fontWeight: "900"
   },
-  statusCopy: {
-    color: colors.textSoft,
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 18
+  screenGap: {
+    gap: spacing.xl
   },
-  statusDivider: {
-    backgroundColor: colors.border,
-    height: 34,
-    width: 1
+  sectionIntro: {
+    gap: spacing.sm
   },
   sectionLabel: {
-    color: colors.pink,
+    color: colors.gold,
     fontSize: 13,
     fontWeight: "900",
     letterSpacing: 0,
-    marginBottom: spacing.xs,
     textTransform: "uppercase"
   },
   heading: {
-    color: colors.text,
-    fontSize: 34,
+    color: colors.cream,
+    fontSize: 38,
     fontWeight: "900",
     letterSpacing: 0,
-    lineHeight: 39
+    lineHeight: 43,
+    textShadowColor: colors.ink,
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 0
   },
   bodyText: {
     color: colors.textSoft,
     fontSize: 16,
-    lineHeight: 24,
-    marginTop: spacing.sm
+    lineHeight: 24
   },
   formGroup: {
     gap: spacing.sm
   },
   inputLabel: {
-    color: colors.text,
+    color: colors.cream,
     fontSize: 14,
-    fontWeight: "800"
+    fontWeight: "900"
   },
   input: {
-    backgroundColor: colors.surface,
+    backgroundColor: "rgba(16, 11, 5, 0.86)",
     borderColor: colors.border,
     borderRadius: radii.md,
     borderWidth: 1,
     color: colors.text,
     fontSize: 17,
-    minHeight: 54,
+    minHeight: 58,
     paddingHorizontal: spacing.md
   },
-  textArea: {
-    minHeight: 94,
-    paddingTop: spacing.md,
-    textAlignVertical: "top"
+  inputBig: {
+    backgroundColor: "rgba(16, 11, 5, 0.86)",
+    borderColor: colors.gold,
+    borderRadius: radii.md,
+    borderWidth: 2,
+    color: colors.gold,
+    fontSize: 34,
+    fontWeight: "900",
+    letterSpacing: 0,
+    minHeight: 76,
+    paddingHorizontal: spacing.md,
+    textAlign: "center"
   },
-  modeList: {
-    gap: spacing.sm
-  },
-  joinGrid: {
-    flexDirection: "row",
-    gap: spacing.md
-  },
-  codeBox: {
+  rulePanel: {
     alignItems: "center",
-    backgroundColor: colors.surface,
+    backgroundColor: "rgba(16, 11, 5, 0.84)",
     borderColor: colors.border,
     borderRadius: radii.md,
     borderWidth: 1,
-    flex: 1,
-    gap: spacing.sm,
-    minHeight: 132,
-    justifyContent: "center",
+    flexDirection: "row",
+    gap: spacing.md,
     padding: spacing.md
   },
-  codeCaption: {
+  ruleIcon: {
+    alignItems: "center",
+    backgroundColor: colors.gold,
+    borderRadius: radii.md,
+    height: 52,
+    justifyContent: "center",
+    width: 52
+  },
+  ruleCopy: {
+    flex: 1,
+    gap: spacing.xs
+  },
+  ruleTitle: {
+    color: colors.cream,
+    fontSize: 17,
+    fontWeight: "900"
+  },
+  ruleText: {
     color: colors.textSoft,
     fontSize: 13,
-    lineHeight: 18,
-    textAlign: "center"
+    lineHeight: 18
   },
   lobbyHeader: {
     alignItems: "flex-start",
@@ -497,31 +743,38 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     justifyContent: "space-between"
   },
+  lobbyTitleBlock: {
+    flex: 1,
+    gap: spacing.xs
+  },
   roomCodePill: {
     alignItems: "center",
-    borderColor: colors.cyan,
+    backgroundColor: "rgba(16, 11, 5, 0.82)",
+    borderColor: colors.teal,
     borderRadius: radii.md,
     borderWidth: 1,
-    minWidth: 92,
+    minWidth: 94,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm
   },
   roomCodeLabel: {
     color: colors.textSoft,
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "900",
     textTransform: "uppercase"
   },
   roomCodeValue: {
-    color: colors.cyan,
-    fontSize: 28,
+    color: colors.teal,
+    fontSize: 30,
     fontWeight: "900",
     letterSpacing: 0
   },
   qrPanel: {
     alignItems: "center",
-    backgroundColor: colors.lime,
+    backgroundColor: colors.gold,
+    borderColor: colors.cream,
     borderRadius: radii.md,
+    borderWidth: 2,
     flexDirection: "row",
     gap: spacing.md,
     padding: spacing.lg
@@ -532,13 +785,17 @@ const styles = StyleSheet.create({
   },
   qrTitle: {
     color: colors.ink,
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: "900"
   },
   qrSubtitle: {
     color: colors.inkSoft,
     fontSize: 13,
+    fontWeight: "700",
     lineHeight: 18
+  },
+  playersPanel: {
+    gap: spacing.md
   },
   playersHeader: {
     alignItems: "center",
@@ -546,17 +803,44 @@ const styles = StyleSheet.create({
     justifyContent: "space-between"
   },
   playerCount: {
-    color: colors.cyan,
+    color: colors.teal,
     fontSize: 14,
     fontWeight: "900"
   },
-  playerList: {
+  playerGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.sm
   },
+  playerCard: {
+    alignItems: "center",
+    backgroundColor: "rgba(16, 11, 5, 0.84)",
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    gap: 3,
+    minWidth: "47%",
+    padding: spacing.md
+  },
+  playerAvatar: {
+    color: colors.gold,
+    fontSize: 28,
+    fontWeight: "900"
+  },
+  playerName: {
+    color: colors.cream,
+    fontSize: 16,
+    fontWeight: "900"
+  },
+  playerStatus: {
+    color: colors.textSoft,
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase"
+  },
   nextGamePanel: {
     alignItems: "center",
+    backgroundColor: "rgba(16, 11, 5, 0.86)",
     borderColor: colors.border,
     borderRadius: radii.md,
     borderWidth: 1,
@@ -569,8 +853,8 @@ const styles = StyleSheet.create({
     gap: spacing.xs
   },
   nextGameTitle: {
-    color: colors.text,
-    fontSize: 17,
+    color: colors.cream,
+    fontSize: 19,
     fontWeight: "900"
   },
   nextGameSubtitle: {
@@ -578,35 +862,113 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18
   },
-  votePreview: {
+  roundHeader: {
     alignItems: "center",
-    backgroundColor: colors.surfaceHot,
-    borderColor: colors.pink,
+    flexDirection: "row",
+    justifyContent: "space-between"
+  },
+  timerPill: {
+    alignItems: "center",
+    backgroundColor: colors.ember,
+    borderColor: colors.orange,
+    borderRadius: radii.full,
+    borderWidth: 2,
+    height: 76,
+    justifyContent: "center",
+    width: 76
+  },
+  timerValue: {
+    color: colors.cream,
+    fontSize: 30,
+    fontWeight: "900",
+    lineHeight: 34
+  },
+  timerLabel: {
+    color: colors.cream,
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  questionCard: {
+    backgroundColor: "rgba(255, 194, 58, 0.95)",
+    borderColor: colors.cream,
+    borderRadius: radii.lg,
+    borderWidth: 2,
+    gap: spacing.sm,
+    padding: spacing.xl
+  },
+  questionEyebrow: {
+    color: colors.inkSoft,
+    fontSize: 13,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  questionText: {
+    color: colors.ink,
+    fontSize: 29,
+    fontWeight: "900",
+    letterSpacing: 0,
+    lineHeight: 36
+  },
+  votePanel: {
+    gap: spacing.md
+  },
+  voteGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm
+  },
+  voteCard: {
+    alignItems: "center",
+    backgroundColor: "rgba(16, 11, 5, 0.84)",
+    borderColor: colors.border,
     borderRadius: radii.md,
     borderWidth: 1,
     flexDirection: "row",
-    gap: spacing.lg,
-    padding: spacing.lg
+    gap: spacing.sm,
+    minHeight: 66,
+    minWidth: "47%",
+    padding: spacing.md
   },
-  voteTimer: {
-    color: colors.pink,
-    fontSize: 54,
+  voteCardSelected: {
+    backgroundColor: colors.teal,
+    borderColor: colors.cream
+  },
+  voteAvatar: {
+    color: colors.gold,
+    fontSize: 24,
     fontWeight: "900",
-    minWidth: 72,
+    minWidth: 24,
     textAlign: "center"
   },
-  voteCopy: {
-    flex: 1,
-    gap: spacing.xs
+  voteAvatarSelected: {
+    color: colors.ink
   },
-  voteTitle: {
-    color: colors.text,
-    fontSize: 19,
+  voteName: {
+    color: colors.cream,
+    flex: 1,
+    fontSize: 16,
     fontWeight: "900"
   },
-  voteSubtitle: {
+  voteNameSelected: {
+    color: colors.ink
+  },
+  resultPanel: {
+    backgroundColor: "rgba(16, 11, 5, 0.86)",
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    gap: spacing.xs,
+    padding: spacing.lg
+  },
+  resultTitle: {
+    color: colors.cream,
+    fontSize: 20,
+    fontWeight: "900"
+  },
+  resultText: {
     color: colors.textSoft,
-    fontSize: 13,
-    lineHeight: 18
+    fontSize: 14,
+    lineHeight: 20
   }
 });
