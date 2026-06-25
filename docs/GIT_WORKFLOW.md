@@ -155,6 +155,57 @@ git branch -d NOME_DA_BRANCH
 
 Se a branch tambem existir no GitHub, apagar a branch remota depois do merge.
 
+## Fluxo no GitKraken
+
+O GitKraken e apenas a interface visual para o mesmo Git. A regra continua igual: `main` e estavel, trabalho novo acontece em branches, e a integracao acontece por Pull Request.
+
+### Abrir o projeto certo
+
+Cada pessoa deve abrir ou clonar o mesmo repositorio:
+
+```text
+https://github.com/leandro08ferreira8-lab/playpint.git
+```
+
+No PC do Santiago, a pasta correta neste momento e:
+
+```text
+C:\Users\Santiago\Desktop\Playpint\playpint
+```
+
+Nao abrir a pasta de fora `C:\Users\Santiago\Desktop\Playpint`, porque ela ficou como repositorio local separado durante a configuracao inicial.
+
+### Comecar uma tarefa
+
+1. Selecionar a branch `main`.
+2. Clicar em `Pull`.
+3. Criar uma branch nova a partir da `main`.
+4. Usar nomes como `feat/mobile/join-room` ou `feat/backend/create-room`.
+5. Trabalhar sempre nessa branch.
+
+### Fazer commit
+
+1. Ver os ficheiros em `Unstaged Files`.
+2. Abrir o diff de cada ficheiro alterado.
+3. Passar para `Staged Files` apenas os ficheiros daquela tarefa.
+4. Escrever uma mensagem objetiva, por exemplo `feat(mobile): add join room screen`.
+5. Clicar em `Commit changes`.
+
+### Partilhar trabalho
+
+1. Clicar em `Push`.
+2. Publicar a branch remota quando o GitKraken pedir.
+3. Abrir Pull Request no GitHub.
+4. O outro programador faz review antes do merge.
+
+### Ver trabalho da outra pessoa
+
+1. Clicar em `Fetch`.
+2. Ver as branches remotas novas no grafo.
+3. Para trazer alteracoes ja aprovadas, selecionar `main` e clicar em `Pull`.
+
+O GitKraken nao mostra edicao em tempo real como um documento partilhado. O trabalho do outro aparece quando ele faz `Push`, abre branch, ou cria Pull Request.
+
 ## Comandos que voces devem pedir ao Codex
 
 ```text

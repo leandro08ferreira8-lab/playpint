@@ -32,3 +32,9 @@ pnpm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# Backend/runtime
+*.sqlite
+*.sqlite3
+tmp/
+temp/
