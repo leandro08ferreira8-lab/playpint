@@ -1,0 +1,13 @@
+{
+  "name": "playpint",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "mobile:start": "pnpm --filter @playpint/mobile start",
+    "mobile:android": "pnpm --filter @playpint/mobile android",
+    "mobile:ios": "pnpm --filter @playpint/mobile ios",
+    "mobile:web": "pnpm --filter @playpint/mobile web",
+    "typecheck": "pnpm --filter @playpint/mobile typecheck"
+  }
+}
