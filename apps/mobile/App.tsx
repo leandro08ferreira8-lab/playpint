@@ -1,5 +1,5 @@
 import { StatusBar } from "expo-status-bar";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -27,6 +27,7 @@ import { ActionButton } from "./src/components/ActionButton";
 import { GameModeRow } from "./src/components/GameModeRow";
 import { PlayerPill } from "./src/components/PlayerPill";
 import { gameModes } from "./src/data/gameModes";
+import { LoadingScreen } from "./src/screens/LoadingScreen";
 import { colors, radii, spacing } from "./src/theme";
 import type { AppScreen, LobbyRole } from "./src/types";
 
@@ -38,6 +39,7 @@ const samplePlayers = [
 ];
 
 export default function App() {
+  const [bootComplete, setBootComplete] = useState(false);
   const [screen, setScreen] = useState<AppScreen>("home");
   const [roomName, setRoomName] = useState("Mesa 7");
   const [roomCode, setRoomCode] = useState("4829");
@@ -54,6 +56,14 @@ export default function App() {
   function openLobby(role: LobbyRole) {
     setLobbyRole(role);
     setScreen("lobby");
+  }
+
+  const finishBoot = useCallback(() => {
+    setBootComplete(true);
+  }, []);
+
+  if (!bootComplete) {
+    return <LoadingScreen onDone={finishBoot} />;
   }
 
   return (
