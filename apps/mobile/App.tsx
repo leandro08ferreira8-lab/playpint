@@ -1,6 +1,7 @@
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useMemo, useState } from "react";
 import {
+  Image,
   ImageBackground,
   KeyboardAvoidingView,
   Platform,
@@ -18,7 +19,6 @@ import {
   Crown,
   LogIn,
   QrCode,
-  Sparkles,
   UsersRound,
   Vote
 } from "lucide-react-native";
@@ -28,6 +28,7 @@ import { colors, radii, spacing } from "./src/theme";
 import type { AppScreen, IconComponent, LobbyRole } from "./src/types";
 
 const barBackground = require("./assets/bar-table-background.png");
+const playpintLogo = require("./assets/playpint-logo-reference.png");
 
 const samplePlayers = ["Leo", "Santi", "Marta", "Rita"];
 
@@ -143,33 +144,11 @@ export default function App() {
             {screen === "home" ? (
               <View style={styles.homeScreen}>
                 <View style={styles.brandArea}>
-                  <View style={styles.bottleCap}>
-                    <Text style={styles.bottleCapText}>P</Text>
-                  </View>
-                  <Text style={styles.logoText}>Playpint</Text>
+                  <Image source={playpintLogo} resizeMode="contain" style={styles.logoImage} />
                   <Text style={styles.heroHeadline}>
                     Junta <Text style={styles.heroHot}>a mesa</Text>
                   </Text>
-                  <Text style={styles.heroSubtitle}>
-                    O jogo e simples: uma pergunta, todos votam, alguem fica marcado.
-                  </Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                  <View style={styles.infoChip}>
-                    <Vote color={colors.orange} size={28} strokeWidth={3} />
-                    <View style={styles.infoChipCopy}>
-                      <Text style={styles.infoNumber}>15s</Text>
-                      <Text style={styles.infoLabel}>para votar</Text>
-                    </View>
-                  </View>
-                  <View style={[styles.infoChip, styles.infoChipTeal]}>
-                    <Sparkles color={colors.teal} size={28} strokeWidth={3} />
-                    <View style={styles.infoChipCopy}>
-                      <Text style={styles.infoNumber}>1 jogo</Text>
-                      <Text style={styles.infoLabel}>Es Tu?</Text>
-                    </View>
-                  </View>
+                  <Text style={styles.heroTagline}>Desafios, votos e rondas sem pausa</Text>
                 </View>
 
                 <View style={styles.actionStack}>
@@ -433,15 +412,21 @@ const styles = StyleSheet.create({
   },
   homeScreen: {
     flexGrow: 1,
-    gap: spacing.xl,
-    justifyContent: "space-between",
-    minHeight: 740,
+    gap: spacing.lg,
+    justifyContent: "flex-start",
+    minHeight: 700,
     paddingBottom: spacing.md,
-    paddingTop: spacing.xxl
+    paddingTop: spacing.lg
   },
   brandArea: {
     alignItems: "center",
-    gap: spacing.sm
+    gap: spacing.xs
+  },
+  logoImage: {
+    alignSelf: "center",
+    height: 238,
+    marginBottom: -8,
+    width: "112%"
   },
   bottleCap: {
     alignItems: "center",
@@ -495,6 +480,15 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "800",
     lineHeight: 25,
+    maxWidth: 330,
+    textAlign: "center"
+  },
+  heroTagline: {
+    color: colors.cream,
+    fontSize: 19,
+    fontWeight: "900",
+    lineHeight: 25,
+    marginTop: spacing.sm,
     maxWidth: 330,
     textAlign: "center"
   },
