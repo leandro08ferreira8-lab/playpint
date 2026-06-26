@@ -1,0 +1,13 @@
+#!/bin/sh
+protected_regex='refs/heads/\(main\|master\)$'
+
+while read local_ref local_sha remote_ref remote_sha
+do
+  if echo "$local_ref" | grep -q "$protected_regex" || echo "$remote_ref" | grep -q "$protected_regex"; then
+    echo "Blocked: do not push directly to main/master."
+    echo "Push a feature branch and merge through review instead."
+    exit 1
+  fi
+done
+
+exit 0

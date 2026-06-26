@@ -1,0 +1,13 @@
+#!/bin/sh
+branch="$(git rev-parse --abbrev-ref HEAD)"
+
+case "$branch" in
+  main|master)
+    echo "Blocked: do not commit directly on $branch."
+    echo "Create or switch to a feature branch first, for example:"
+    echo "  git switch feat/mobile/base-app"
+    exit 1
+    ;;
+esac
+
+exit 0
