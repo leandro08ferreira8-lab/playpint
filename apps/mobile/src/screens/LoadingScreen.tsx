@@ -9,7 +9,6 @@ import {
   Text,
   View
 } from "react-native";
-import { Sparkles, UsersRound, Vote } from "lucide-react-native";
 
 import { colors, radii, spacing } from "../theme";
 
@@ -19,12 +18,6 @@ const playpintLogo = require("../../assets/playpint-logo-cutout.png");
 type LoadingScreenProps = {
   onDone: () => void;
 };
-
-const loadingSteps = [
-  { label: "Mesa", Icon: UsersRound },
-  { label: "Votos", Icon: Vote },
-  { label: "Ronda", Icon: Sparkles }
-];
 
 export function LoadingScreen({ onDone }: LoadingScreenProps) {
   const progress = useRef(new Animated.Value(0)).current;
@@ -101,24 +94,12 @@ export function LoadingScreen({ onDone }: LoadingScreenProps) {
               style={[styles.logoImage, { transform: [{ scale: logoScale }] }]}
             />
             <Text style={styles.title}>A preparar a mesa</Text>
-            <Text style={styles.subtitle}>Perguntas, votos e ronda quase prontos.</Text>
+            <Text style={styles.subtitle}>So falta aquecer a sala.</Text>
           </View>
 
-          <View style={styles.loadingPanel}>
+          <View style={styles.loadingBarWrap}>
             <View style={styles.progressTrack}>
               <Animated.View style={[styles.progressFill, { width: progressWidth }]} />
-            </View>
-            <View style={styles.loadingMeta}>
-              <Text style={styles.loadingLabel}>A aquecer o Es Tu?</Text>
-              <Text style={styles.loadingPercent}>Playpint</Text>
-            </View>
-            <View style={styles.stepRow}>
-              {loadingSteps.map(({ label, Icon }) => (
-                <View key={label} style={styles.stepChip}>
-                  <Icon color={colors.gold} size={17} strokeWidth={3} />
-                  <Text style={styles.stepText}>{label}</Text>
-                </View>
-              ))}
             </View>
           </View>
         </View>
@@ -185,20 +166,16 @@ const styles = StyleSheet.create({
     maxWidth: 310,
     textAlign: "center"
   },
-  loadingPanel: {
-    backgroundColor: "rgba(16, 11, 5, 0.82)",
-    borderColor: colors.border,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    gap: spacing.md,
-    padding: spacing.lg
+  loadingBarWrap: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm
   },
   progressTrack: {
     backgroundColor: "rgba(255, 245, 221, 0.16)",
-    borderColor: colors.borderSoft,
+    borderColor: colors.border,
     borderRadius: radii.full,
     borderWidth: 1,
-    height: 18,
+    height: 16,
     overflow: "hidden"
   },
   progressFill: {
@@ -206,43 +183,4 @@ const styles = StyleSheet.create({
     borderRadius: radii.full,
     height: "100%"
   },
-  loadingMeta: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between"
-  },
-  loadingLabel: {
-    color: colors.cream,
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "900"
-  },
-  loadingPercent: {
-    color: colors.orange,
-    fontSize: 13,
-    fontWeight: "900",
-    textTransform: "uppercase"
-  },
-  stepRow: {
-    flexDirection: "row",
-    gap: spacing.sm
-  },
-  stepChip: {
-    alignItems: "center",
-    backgroundColor: "rgba(255, 194, 58, 0.1)",
-    borderColor: colors.border,
-    borderRadius: radii.full,
-    borderWidth: 1,
-    flex: 1,
-    flexDirection: "row",
-    gap: spacing.xs,
-    justifyContent: "center",
-    minHeight: 42,
-    paddingHorizontal: spacing.sm
-  },
-  stepText: {
-    color: colors.cream,
-    fontSize: 12,
-    fontWeight: "900"
-  }
 });
