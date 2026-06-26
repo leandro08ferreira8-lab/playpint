@@ -28,7 +28,7 @@ import { colors, radii, spacing } from "./src/theme";
 import type { AppScreen, IconComponent, LobbyRole } from "./src/types";
 
 const barBackground = require("./assets/bar-table-background.png");
-const playpintLogo = require("./assets/playpint-logo-reference.png");
+const playpintLogo = require("./assets/playpint-logo-cutout.png");
 
 const samplePlayers = ["Leo", "Santi", "Marta", "Rita"];
 
