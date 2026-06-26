@@ -51,7 +51,7 @@ export function LoadingScreen({ onDone }: LoadingScreenProps) {
 
     const bootAnimation = Animated.timing(progress, {
       toValue: 1,
-      duration: 2600,
+      duration: 6000,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false
     });
@@ -59,7 +59,7 @@ export function LoadingScreen({ onDone }: LoadingScreenProps) {
     pulseLoop.start();
     bootAnimation.start(({ finished }) => {
       if (finished) {
-        doneTimer.current = setTimeout(onDone, 260);
+        doneTimer.current = setTimeout(onDone, 600);
       }
     });
 
