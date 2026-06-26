@@ -75,11 +75,6 @@ export function LoadingScreen({ onDone }: LoadingScreenProps) {
     outputRange: [0.98, 1.03]
   });
 
-  const glowOpacity = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.42, 0.82]
-  });
-
   return (
     <ImageBackground source={barBackground} resizeMode="cover" style={styles.background}>
       <StatusBar style="light" />
@@ -87,7 +82,6 @@ export function LoadingScreen({ onDone }: LoadingScreenProps) {
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.container}>
           <View style={styles.brandBlock}>
-            <Animated.View style={[styles.logoGlow, { opacity: glowOpacity }]} />
             <Animated.Image
               source={playpintLogo}
               resizeMode="contain"
@@ -133,17 +127,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingBottom: spacing.xl
   },
-  logoGlow: {
-    backgroundColor: colors.orange,
-    borderRadius: radii.full,
-    height: 180,
-    position: "absolute",
-    top: "29%",
-    width: 250
-  },
   logoImage: {
     height: 220,
     marginBottom: spacing.lg,
+    shadowColor: colors.orange,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 16,
     width: "112%"
   },
   title: {
