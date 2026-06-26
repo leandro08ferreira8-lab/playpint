@@ -130,10 +130,6 @@ const styles = StyleSheet.create({
   logoImage: {
     height: 220,
     marginBottom: spacing.lg,
-    shadowColor: colors.orange,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28,
-    shadowRadius: 16,
     width: "112%"
   },
   title: {
@@ -142,10 +138,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: 0,
     lineHeight: 44,
-    textAlign: "center",
-    textShadowColor: colors.ink,
-    textShadowOffset: { width: 0, height: 4 },
-    textShadowRadius: 0
+    textAlign: "center"
   },
   subtitle: {
     color: colors.textSoft,

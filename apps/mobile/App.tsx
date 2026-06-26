@@ -258,27 +258,36 @@ export default function App() {
             ) : null}
 
             {screen === "lobby" ? (
-              <View style={styles.screenGap}>
-                <View style={styles.lobbyHeader}>
-                  <View style={styles.lobbyTitleBlock}>
-                    <Text style={styles.sectionLabel}>
-                      {lobbyRole === "host" ? "Lobby do host" : "Lobby do jogador"}
-                    </Text>
-                    <Text style={styles.heading}>{roomName || "Sala Playpint"}</Text>
-                  </View>
-                  <View style={styles.roomCodePill}>
-                    <Text style={styles.roomCodeLabel}>Codigo</Text>
-                    <Text style={styles.roomCodeValue}>{roomCode}</Text>
-                  </View>
+              <View style={styles.lobbyScreen}>
+                <View style={styles.lobbyHero}>
+                  <Image source={playpintLogo} resizeMode="contain" style={styles.lobbyLogoImage} />
+                  <Text style={styles.sectionLabel}>
+                    {lobbyRole === "host" ? "Lobby do host" : "Lobby do jogador"}
+                  </Text>
+                  <Text style={styles.lobbyHeading}>{roomName || "Sala Playpint"}</Text>
                 </View>
 
-                <View style={styles.qrPanel}>
-                  <QrCode color={colors.ink} size={70} strokeWidth={3} />
-                  <View style={styles.qrCopy}>
-                    <Text style={styles.qrTitle}>Mostra isto aos jogadores</Text>
-                    <Text style={styles.qrSubtitle}>
-                      O QR real entra quando ligarmos backend. Para ja, o codigo manda.
-                    </Text>
+                <View style={styles.roomCodeStage}>
+                  <Text style={styles.roomCodeEyebrow}>Codigo da sala</Text>
+                  <Text style={styles.roomCodeHero}>{roomCode}</Text>
+                  <View style={styles.roomCodeRule} />
+                  <Text style={styles.roomCodeHint}>Mostra este codigo a quem vai entrar.</Text>
+                </View>
+
+                <View style={styles.lobbyInfoRow}>
+                  <View style={styles.lobbyMiniCard}>
+                    <UsersRound color={colors.gold} size={25} strokeWidth={3} />
+                    <View style={styles.lobbyMiniCopy}>
+                      <Text style={styles.lobbyMiniValue}>{samplePlayers.length}/8</Text>
+                      <Text style={styles.lobbyMiniLabel}>na mesa</Text>
+                    </View>
+                  </View>
+                  <View style={styles.lobbyMiniCard}>
+                    <QrCode color={colors.gold} size={25} strokeWidth={3} />
+                    <View style={styles.lobbyMiniCopy}>
+                      <Text style={styles.lobbyMiniValue}>QR</Text>
+                      <Text style={styles.lobbyMiniLabel}>em breve</Text>
+                    </View>
                   </View>
                 </View>
 
@@ -301,9 +310,9 @@ export default function App() {
                 <View style={styles.nextGamePanel}>
                   <Crown color={colors.gold} size={30} strokeWidth={3} />
                   <View style={styles.nextGameCopy}>
-                    <Text style={styles.nextGameTitle}>Es Tu?</Text>
+                    <Text style={styles.nextGameTitle}>A seguir: Es Tu?</Text>
                     <Text style={styles.nextGameSubtitle}>
-                      Perguntas de acusacao amigavel, votos rapidos e discussao garantida.
+                      Quando todos estiverem prontos, o host lanca a primeira pergunta.
                     </Text>
                   </View>
                 </View>
@@ -703,65 +712,103 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18
   },
-  lobbyHeader: {
-    alignItems: "flex-start",
-    flexDirection: "row",
-    gap: spacing.md,
-    justifyContent: "space-between"
+  lobbyScreen: {
+    gap: spacing.lg
   },
-  lobbyTitleBlock: {
-    flex: 1,
+  lobbyHero: {
+    alignItems: "center",
     gap: spacing.xs
   },
-  roomCodePill: {
-    alignItems: "center",
-    backgroundColor: "rgba(16, 11, 5, 0.82)",
-    borderColor: colors.teal,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    minWidth: 94,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm
+  lobbyLogoImage: {
+    alignSelf: "center",
+    height: 96,
+    marginBottom: -14,
+    width: "76%"
   },
-  roomCodeLabel: {
+  lobbyHeading: {
+    color: colors.cream,
+    fontSize: 33,
+    fontWeight: "900",
+    letterSpacing: 0,
+    lineHeight: 37,
+    textAlign: "center"
+  },
+  roomCodeStage: {
+    alignItems: "center",
+    backgroundColor: "rgba(16, 11, 5, 0.76)",
+    borderColor: colors.gold,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl
+  },
+  roomCodeEyebrow: {
+    color: colors.textSoft,
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 0,
+    textTransform: "uppercase"
+  },
+  roomCodeHero: {
+    color: colors.gold,
+    fontSize: 76,
+    fontWeight: "900",
+    letterSpacing: 0,
+    lineHeight: 84
+  },
+  roomCodeRule: {
+    backgroundColor: colors.orange,
+    borderRadius: radii.full,
+    height: 4,
+    marginBottom: spacing.sm,
+    marginTop: spacing.xs,
+    width: 86
+  },
+  roomCodeHint: {
+    color: colors.cream,
+    fontSize: 15,
+    fontWeight: "900",
+    lineHeight: 21,
+    textAlign: "center"
+  },
+  lobbyInfoRow: {
+    flexDirection: "row",
+    gap: spacing.md
+  },
+  lobbyMiniCard: {
+    alignItems: "center",
+    backgroundColor: "rgba(16, 11, 5, 0.7)",
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    flex: 1,
+    flexDirection: "row",
+    gap: spacing.sm,
+    minHeight: 72,
+    padding: spacing.md
+  },
+  lobbyMiniCopy: {
+    flex: 1
+  },
+  lobbyMiniValue: {
+    color: colors.cream,
+    fontSize: 21,
+    fontWeight: "900",
+    letterSpacing: 0
+  },
+  lobbyMiniLabel: {
     color: colors.textSoft,
     fontSize: 12,
     fontWeight: "900",
     textTransform: "uppercase"
   },
-  roomCodeValue: {
-    color: colors.teal,
-    fontSize: 30,
-    fontWeight: "900",
-    letterSpacing: 0
-  },
-  qrPanel: {
-    alignItems: "center",
-    backgroundColor: colors.gold,
-    borderColor: colors.cream,
-    borderRadius: radii.md,
-    borderWidth: 2,
-    flexDirection: "row",
-    gap: spacing.md,
-    padding: spacing.lg
-  },
-  qrCopy: {
-    flex: 1,
-    gap: spacing.xs
-  },
-  qrTitle: {
-    color: colors.ink,
-    fontSize: 18,
-    fontWeight: "900"
-  },
-  qrSubtitle: {
-    color: colors.inkSoft,
-    fontSize: 13,
-    fontWeight: "700",
-    lineHeight: 18
-  },
   playersPanel: {
-    gap: spacing.md
+    backgroundColor: "rgba(16, 11, 5, 0.54)",
+    borderColor: colors.borderSoft,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    gap: spacing.md,
+    padding: spacing.md
   },
   playersHeader: {
     alignItems: "center",
@@ -780,35 +827,40 @@ const styles = StyleSheet.create({
   },
   playerCard: {
     alignItems: "center",
-    backgroundColor: "rgba(16, 11, 5, 0.84)",
-    borderColor: colors.border,
-    borderRadius: radii.md,
+    backgroundColor: "rgba(255, 245, 221, 0.07)",
+    borderColor: colors.borderSoft,
+    borderRadius: radii.full,
     borderWidth: 1,
-    gap: 3,
+    flexDirection: "row",
+    gap: spacing.sm,
     minWidth: "47%",
-    padding: spacing.md
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm
   },
   playerAvatar: {
     color: colors.gold,
-    fontSize: 28,
-    fontWeight: "900"
+    fontSize: 20,
+    fontWeight: "900",
+    minWidth: 20,
+    textAlign: "center"
   },
   playerName: {
     color: colors.cream,
+    flex: 1,
     fontSize: 16,
     fontWeight: "900"
   },
   playerStatus: {
     color: colors.textSoft,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
     textTransform: "uppercase"
   },
   nextGamePanel: {
     alignItems: "center",
-    backgroundColor: "rgba(16, 11, 5, 0.86)",
+    backgroundColor: "rgba(16, 11, 5, 0.68)",
     borderColor: colors.border,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     borderWidth: 1,
     flexDirection: "row",
     gap: spacing.md,
