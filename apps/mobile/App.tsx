@@ -166,11 +166,6 @@ export default function App() {
                     onPress={() => setScreen("join")}
                   />
                 </View>
-
-                <View style={styles.footerBadge}>
-                  <Text style={styles.footerBadgeTitle}>Boas escolhas</Text>
-                  <Text style={styles.footerBadgeText}>melhores historias</Text>
-                </View>
               </View>
             ) : null}
 
@@ -527,7 +522,8 @@ const styles = StyleSheet.create({
     lineHeight: 17
   },
   actionStack: {
-    gap: spacing.md
+    gap: spacing.md,
+    marginTop: 54
   },
   posterButton: {
     alignItems: "center",
@@ -595,32 +591,6 @@ const styles = StyleSheet.create({
   },
   posterButtonHelperGhost: {
     color: colors.textSoft
-  },
-  footerBadge: {
-    alignItems: "center",
-    alignSelf: "center",
-    backgroundColor: "rgba(16, 11, 5, 0.72)",
-    borderColor: colors.border,
-    borderRadius: radii.full,
-    borderWidth: 1,
-    minWidth: 214,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md
-  },
-  footerBadgeTitle: {
-    color: colors.gold,
-    fontSize: 14,
-    fontWeight: "900",
-    letterSpacing: 0,
-    textTransform: "uppercase"
-  },
-  footerBadgeText: {
-    color: colors.textSoft,
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 0,
-    marginTop: 2,
-    textTransform: "uppercase"
   },
   backButton: {
     alignItems: "center",
