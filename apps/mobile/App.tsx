@@ -136,7 +136,9 @@ export default function App() {
         >
           <ScrollView
             contentContainerStyle={styles.scrollContent}
+            bounces={screen !== "home"}
             keyboardShouldPersistTaps="handled"
+            scrollEnabled={screen !== "home"}
             showsVerticalScrollIndicator={false}
           >
             {screen !== "home" ? <BackButton onPress={() => setScreen("home")} /> : null}
