@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "expo": "~54.0.35",
+    "expo-camera": "~17.0.10",
     "expo-status-bar": "~3.0.9",
     "lucide-react-native": "^1.21.0",
     "react": "19.1.0",

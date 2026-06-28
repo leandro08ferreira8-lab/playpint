@@ -1,5 +1,6 @@
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useMemo, useState } from "react";
+import { CameraView, type BarcodeScanningResult, useCameraPermissions } from "expo-camera";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Image,
   ImageBackground,
@@ -103,6 +104,7 @@ function BackButton({ onPress }: BackButtonProps) {
 }
 
 export default function App() {
+  const codeInputRef = useRef<TextInput>(null);
   const [bootComplete, setBootComplete] = useState(false);
   const [screen, setScreen] = useState<AppScreen>("home");
   const [roomName, setRoomName] = useState("Mesa 7");
@@ -117,8 +119,11 @@ export default function App() {
   ]);
   const [modeMenuOpen, setModeMenuOpen] = useState(false);
   const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [qrScannerOpen, setQrScannerOpen] = useState(false);
+  const [scannerLocked, setScannerLocked] = useState(false);
   const [roundIndex, setRoundIndex] = useState(0);
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
   const currentQuestion = useMemo(
     () => esTuQuestions[roundIndex % esTuQuestions.length],
@@ -143,6 +148,7 @@ export default function App() {
       )}`,
     [roomCode, roomName]
   );
+  const joinCodeDigits = useMemo(() => roomCode.padEnd(4, " ").slice(0, 4).split(""), [roomCode]);
   const lobbyPlayers = useMemo(() => {
     if (lobbyRole === "client") {
       return [{ id: "you", name: nickname || "Tu", status: "pronto" }];
@@ -161,9 +167,38 @@ export default function App() {
     ? esTuModeOptions
     : esTuModeOptions.filter((mode) => selectedEsTuModes.includes(mode.id));
 
+  useEffect(() => {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      window.requestAnimationFrame(() => window.scrollTo(0, 0));
+    }
+  }, [screen]);
+
   function openLobby(role: LobbyRole) {
     setLobbyRole(role);
     setScreen("lobby");
+  }
+
+  function openQrScanner() {
+    setScannerLocked(false);
+    setQrScannerOpen(true);
+  }
+
+  function handleQrScanned({ data }: BarcodeScanningResult) {
+    if (scannerLocked) {
+      return;
+    }
+
+    const codeFromLink = data.match(/[?&]code=([^&]+)/)?.[1];
+    const decodedCode = codeFromLink ? decodeURIComponent(codeFromLink) : data;
+    const nextCode = decodedCode.replace(/\D/g, "").slice(0, 4);
+
+    if (!nextCode) {
+      return;
+    }
+
+    setScannerLocked(true);
+    setRoomCode(nextCode);
+    setQrScannerOpen(false);
   }
 
   function toggleEsTuMode(modeId: string) {
@@ -204,6 +239,7 @@ export default function App() {
           style={styles.keyboard}
         >
           <ScrollView
+            key={screen}
             contentContainerStyle={styles.scrollContent}
             bounces={canScroll}
             keyboardShouldPersistTaps="handled"
@@ -346,43 +382,89 @@ export default function App() {
             ) : null}
 
             {screen === "join" ? (
-              <View style={styles.screenGap}>
-                <View style={styles.sectionIntro}>
-                  <Text style={styles.sectionLabel}>Entrar</Text>
-                  <Text style={styles.heading}>Junta-te a mesa</Text>
-                  <Text style={styles.bodyText}>
-                    Escreve o codigo da sala e o nome que vai aparecer nas votacoes.
-                  </Text>
+              <View style={styles.joinScreen}>
+                <View style={styles.joinHero}>
+                  <Image source={playpintLogo} resizeMode="contain" style={styles.joinLogoImage} />
+                  <Text style={styles.sectionLabel}>Entrar na sala</Text>
+                  <Text style={styles.joinHeading}>Tens o codigo?</Text>
+                  <Text style={styles.joinSubheading}>Mete o codigo do host e senta-te a mesa.</Text>
                 </View>
 
-                <View style={styles.formGroup}>
-                  <Text style={styles.inputLabel}>Codigo da sala</Text>
-                  <TextInput
-                    value={roomCode}
-                    onChangeText={setRoomCode}
-                    keyboardType="number-pad"
-                    maxLength={4}
-                    placeholder="4829"
-                    placeholderTextColor={colors.muted}
-                    style={styles.inputBig}
-                  />
+                <View style={styles.joinTicket}>
+                  <View style={styles.joinTicketHeader}>
+                    <Text style={styles.joinTicketLabel}>Codigo do host</Text>
+                    <View style={styles.joinTicketBadge}>
+                      <Text style={styles.joinTicketBadgeText}>4 digitos</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.joinCodeEntry}>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => codeInputRef.current?.focus()}
+                      style={styles.joinCodeSlots}
+                    >
+                      {joinCodeDigits.map((digit, index) => (
+                        <View
+                          key={`join-code-${index}`}
+                          style={[styles.joinCodeSlot, digit.trim() && styles.joinCodeSlotFilled]}
+                        >
+                          <Text style={styles.joinCodeDigit}>{digit.trim() ? digit : "-"}</Text>
+                        </View>
+                      ))}
+                    </Pressable>
+                    <TextInput
+                      ref={codeInputRef}
+                      caretHidden
+                      contextMenuHidden
+                      value={roomCode}
+                      onChangeText={(value) => setRoomCode(value.replace(/\D/g, "").slice(0, 4))}
+                      keyboardType="number-pad"
+                      maxLength={4}
+                      style={styles.joinCodeHiddenInput}
+                    />
+                  </View>
                 </View>
 
-                <View style={styles.formGroup}>
-                  <Text style={styles.inputLabel}>Nickname</Text>
-                  <TextInput
-                    value={nickname}
-                    onChangeText={setNickname}
-                    placeholder="Como te chamas?"
-                    placeholderTextColor={colors.muted}
-                    style={styles.input}
-                  />
+                <View style={styles.joinProfileCard}>
+                  <View style={styles.joinAvatarPreview}>
+                    <Text style={styles.joinAvatarText}>
+                      {(nickname.trim() || "?").slice(0, 1).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={styles.joinProfileCopy}>
+                    <Text style={styles.joinTicketLabel}>Nome na mesa</Text>
+                    <TextInput
+                      value={nickname}
+                      onChangeText={setNickname}
+                      maxLength={18}
+                      placeholder="Como te chamas?"
+                      placeholderTextColor={colors.muted}
+                      style={styles.joinNameInput}
+                    />
+                  </View>
                 </View>
+
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={openQrScanner}
+                  style={({ pressed }) => [
+                    styles.joinQrNote,
+                    pressed && styles.joinQrNotePressed
+                  ]}
+                >
+                  <QrCode color={colors.gold} size={24} strokeWidth={3} />
+                  <View style={styles.joinQrCopy}>
+                    <Text style={styles.joinQrTitle}>Ler QR Code</Text>
+                    <Text style={styles.joinQrText}>Aponta ao convite do host.</Text>
+                  </View>
+                  <Text style={styles.joinQrAction}>Abrir</Text>
+                </Pressable>
 
                 <PosterButton
                   icon={LogIn}
-                  label="ENTRAR"
-                  helper={nickname ? `vais aparecer como ${nickname}` : "nickname pode ficar para depois"}
+                  label="ENTRAR NA MESA"
+                  helper={nickname ? `vais aparecer como ${nickname}` : "podes escolher o nome depois"}
                   variant="ember"
                   onPress={() => openLobby("client")}
                 />
@@ -712,6 +794,68 @@ export default function App() {
           </SafeAreaView>
         </View>
       </Modal>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setQrScannerOpen(false)}
+        transparent
+        visible={qrScannerOpen}
+      >
+        <View style={styles.scannerBackdrop}>
+          <SafeAreaView style={styles.scannerSafeArea}>
+            <View style={styles.scannerSheet}>
+              <View style={styles.qrSheetHeader}>
+                <View>
+                  <Text style={styles.sectionLabel}>Ler QR Code</Text>
+                  <Text style={styles.qrSheetTitle}>Aponta ao convite</Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setQrScannerOpen(false)}
+                  style={styles.modeCloseButton}
+                >
+                  <X color={colors.cream} size={22} strokeWidth={3} />
+                </Pressable>
+              </View>
+
+              {cameraPermission?.granted ? (
+                <View style={styles.scannerFrame}>
+                  <CameraView
+                    barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+                    facing="back"
+                    onBarcodeScanned={scannerLocked ? undefined : handleQrScanned}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <View pointerEvents="none" style={styles.scannerShade} />
+                  <View pointerEvents="none" style={styles.scannerCorners}>
+                    <View style={[styles.scannerCorner, styles.scannerCornerTopLeft]} />
+                    <View style={[styles.scannerCorner, styles.scannerCornerTopRight]} />
+                    <View style={[styles.scannerCorner, styles.scannerCornerBottomLeft]} />
+                    <View style={[styles.scannerCorner, styles.scannerCornerBottomRight]} />
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.scannerPermissionCard}>
+                  <QrCode color={colors.gold} size={42} strokeWidth={3} />
+                  <Text style={styles.scannerPermissionTitle}>Camara bloqueada</Text>
+                  <Text style={styles.scannerPermissionText}>
+                    Da acesso a camara para ler o QR do host.
+                  </Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => void requestCameraPermission()}
+                    style={styles.scannerPermissionButton}
+                  >
+                    <Text style={styles.modeDoneButtonText}>Dar acesso</Text>
+                  </Pressable>
+                </View>
+              )}
+
+              <Text style={styles.qrHint}>Quando o QR for lido, o codigo entra automaticamente.</Text>
+            </View>
+          </SafeAreaView>
+        </View>
+      </Modal>
     </ImageBackground>
   );
 }
@@ -1000,6 +1144,186 @@ const styles = StyleSheet.create({
     minHeight: 76,
     paddingHorizontal: spacing.md,
     textAlign: "center"
+  },
+  joinScreen: {
+    gap: spacing.md,
+    paddingBottom: spacing.sm
+  },
+  joinHero: {
+    alignItems: "center",
+    gap: spacing.xs
+  },
+  joinLogoImage: {
+    alignSelf: "center",
+    height: 88,
+    marginBottom: -12,
+    width: "72%"
+  },
+  joinHeading: {
+    color: colors.cream,
+    fontSize: 34,
+    fontWeight: "900",
+    letterSpacing: 0,
+    lineHeight: 38,
+    textAlign: "center",
+    textShadowColor: colors.ink,
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 0
+  },
+  joinSubheading: {
+    color: colors.textSoft,
+    fontSize: 14,
+    fontWeight: "800",
+    lineHeight: 19,
+    maxWidth: 280,
+    textAlign: "center"
+  },
+  joinTicket: {
+    backgroundColor: "rgba(16, 11, 5, 0.78)",
+    borderColor: colors.gold,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    gap: spacing.md,
+    padding: spacing.md
+  },
+  joinTicketHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between"
+  },
+  joinTicketLabel: {
+    color: colors.textSoft,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0,
+    textTransform: "uppercase"
+  },
+  joinTicketBadge: {
+    backgroundColor: "rgba(255, 194, 58, 0.14)",
+    borderColor: colors.border,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5
+  },
+  joinTicketBadgeText: {
+    color: colors.gold,
+    fontSize: 10,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  joinCodeEntry: {
+    position: "relative"
+  },
+  joinCodeSlots: {
+    flexDirection: "row",
+    gap: spacing.sm
+  },
+  joinCodeSlot: {
+    alignItems: "center",
+    backgroundColor: "rgba(255, 245, 221, 0.08)",
+    borderColor: colors.borderSoft,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    flex: 1,
+    height: 64,
+    justifyContent: "center"
+  },
+  joinCodeSlotFilled: {
+    backgroundColor: "rgba(255, 194, 58, 0.18)",
+    borderColor: colors.gold
+  },
+  joinCodeDigit: {
+    color: colors.cream,
+    fontSize: 34,
+    fontWeight: "900",
+    lineHeight: 38,
+    textAlign: "center"
+  },
+  joinCodeHiddenInput: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    color: "transparent",
+    fontSize: 1,
+    opacity: 0.02,
+    padding: 0
+  },
+  joinProfileCard: {
+    alignItems: "center",
+    backgroundColor: "rgba(16, 11, 5, 0.72)",
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: spacing.md,
+    minHeight: 82,
+    padding: spacing.md
+  },
+  joinAvatarPreview: {
+    alignItems: "center",
+    backgroundColor: colors.gold,
+    borderColor: colors.cream,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    height: 54,
+    justifyContent: "center",
+    width: 54
+  },
+  joinAvatarText: {
+    color: colors.ink,
+    fontSize: 26,
+    fontWeight: "900",
+    lineHeight: 30,
+    textAlign: "center"
+  },
+  joinProfileCopy: {
+    flex: 1,
+    gap: spacing.xs
+  },
+  joinNameInput: {
+    color: colors.cream,
+    fontSize: 24,
+    fontWeight: "900",
+    minHeight: 40,
+    padding: 0
+  },
+  joinQrNote: {
+    alignItems: "center",
+    backgroundColor: "rgba(16, 11, 5, 0.66)",
+    borderColor: colors.borderSoft,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: spacing.sm,
+    minHeight: 62,
+    padding: spacing.md
+  },
+  joinQrNotePressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.98 }]
+  },
+  joinQrCopy: {
+    flex: 1,
+    gap: 2
+  },
+  joinQrTitle: {
+    color: colors.cream,
+    fontSize: 15,
+    fontWeight: "900",
+    lineHeight: 18
+  },
+  joinQrText: {
+    color: colors.textSoft,
+    fontSize: 12,
+    fontWeight: "800",
+    lineHeight: 16
+  },
+  joinQrAction: {
+    color: colors.gold,
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "uppercase"
   },
   rulePanel: {
     alignItems: "center",
@@ -1669,6 +1993,106 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     minHeight: 54,
     justifyContent: "center"
+  },
+  scannerBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(5, 4, 3, 0.86)",
+    justifyContent: "center"
+  },
+  scannerSafeArea: {
+    flex: 1,
+    justifyContent: "center",
+    padding: spacing.lg
+  },
+  scannerSheet: {
+    backgroundColor: "rgba(16, 11, 5, 0.98)",
+    borderColor: colors.gold,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    gap: spacing.md,
+    padding: spacing.lg
+  },
+  scannerFrame: {
+    aspectRatio: 1,
+    backgroundColor: colors.ink,
+    borderColor: colors.gold,
+    borderRadius: radii.lg,
+    borderWidth: 2,
+    overflow: "hidden"
+  },
+  scannerShade: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(5, 4, 3, 0.12)"
+  },
+  scannerCorners: {
+    ...StyleSheet.absoluteFillObject,
+    margin: spacing.lg
+  },
+  scannerCorner: {
+    borderColor: colors.gold,
+    height: 46,
+    position: "absolute",
+    width: 46
+  },
+  scannerCornerTopLeft: {
+    borderLeftWidth: 5,
+    borderTopWidth: 5,
+    left: 0,
+    top: 0
+  },
+  scannerCornerTopRight: {
+    borderRightWidth: 5,
+    borderTopWidth: 5,
+    right: 0,
+    top: 0
+  },
+  scannerCornerBottomLeft: {
+    borderBottomWidth: 5,
+    borderLeftWidth: 5,
+    bottom: 0,
+    left: 0
+  },
+  scannerCornerBottomRight: {
+    borderBottomWidth: 5,
+    borderRightWidth: 5,
+    bottom: 0,
+    right: 0
+  },
+  scannerPermissionCard: {
+    alignItems: "center",
+    backgroundColor: "rgba(255, 245, 221, 0.07)",
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    gap: spacing.sm,
+    minHeight: 260,
+    justifyContent: "center",
+    padding: spacing.lg
+  },
+  scannerPermissionTitle: {
+    color: colors.cream,
+    fontSize: 24,
+    fontWeight: "900",
+    lineHeight: 29,
+    textAlign: "center"
+  },
+  scannerPermissionText: {
+    color: colors.textSoft,
+    fontSize: 13,
+    fontWeight: "800",
+    lineHeight: 18,
+    textAlign: "center"
+  },
+  scannerPermissionButton: {
+    alignItems: "center",
+    alignSelf: "stretch",
+    backgroundColor: colors.gold,
+    borderColor: colors.cream,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    minHeight: 50,
+    justifyContent: "center",
+    marginTop: spacing.sm
   },
   roundHeader: {
     alignItems: "center",
