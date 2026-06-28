@@ -2,6 +2,8 @@ import { StatusBar } from "expo-status-bar";
 import { CameraView, type BarcodeScanningResult, useCameraPermissions } from "expo-camera";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Animated,
+  Easing,
   Image,
   ImageBackground,
   KeyboardAvoidingView,
@@ -13,6 +15,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  type DimensionValue,
   View
 } from "react-native";
 import {
@@ -35,6 +38,7 @@ import type { AppScreen, IconComponent, LobbyRole } from "./src/types";
 const barBackground = require("./assets/bar-table-background.png");
 const playpintLogo = require("./assets/playpint-logo-cutout.png");
 
+const ROUND_SECONDS = 15;
 const roundDemoPlayers = ["Leo", "Santi", "Marta", "Rita"];
 
 const esTuQuestions = [
@@ -105,6 +109,8 @@ function BackButton({ onPress }: BackButtonProps) {
 
 export default function App() {
   const codeInputRef = useRef<TextInput>(null);
+  const resultAnim = useRef(new Animated.Value(0)).current;
+  const roundProgress = useRef(new Animated.Value(1)).current;
   const [bootComplete, setBootComplete] = useState(false);
   const [screen, setScreen] = useState<AppScreen>("home");
   const [roomName, setRoomName] = useState("Mesa 7");
@@ -123,6 +129,8 @@ export default function App() {
   const [scannerLocked, setScannerLocked] = useState(false);
   const [roundIndex, setRoundIndex] = useState(0);
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
+  const [roundSecondsLeft, setRoundSecondsLeft] = useState(ROUND_SECONDS);
+  const [roundFinished, setRoundFinished] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
   const currentQuestion = useMemo(
@@ -149,6 +157,32 @@ export default function App() {
     [roomCode, roomName]
   );
   const joinCodeDigits = useMemo(() => roomCode.padEnd(4, " ").slice(0, 4).split(""), [roomCode]);
+  const resultRows = useMemo(() => {
+    const topPlayer = selectedPlayer ?? "Santi";
+    const orderedPlayers = [
+      topPlayer,
+      ...roundDemoPlayers.filter((player) => player !== topPlayer)
+    ];
+    const percentages = [64, 18, 11, 7];
+
+    return orderedPlayers.map((player, index) => ({
+      player,
+      percent: percentages[index] ?? 0
+    }));
+  }, [selectedPlayer]);
+  const topResult = resultRows[0] ?? { player: "Santi", percent: 64 };
+  const roundProgressWidth = roundProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0%", "100%"]
+  });
+  const resultScale = resultAnim.interpolate({
+    inputRange: [0, 0.68, 1],
+    outputRange: [0.86, 1.08, 1]
+  });
+  const resultTranslateY = resultAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [22, 0]
+  });
   const lobbyPlayers = useMemo(() => {
     if (lobbyRole === "client") {
       return [{ id: "you", name: nickname || "Tu", status: "pronto" }];
@@ -161,7 +195,7 @@ export default function App() {
     setBootComplete(true);
   }, []);
 
-  const canScroll = screen === "join" || screen === "round";
+  const canScroll = screen === "join";
   const canEditModes = screen === "host" || lobbyRole === "host";
   const visibleModeOptions = canEditModes
     ? esTuModeOptions
@@ -172,6 +206,52 @@ export default function App() {
       window.requestAnimationFrame(() => window.scrollTo(0, 0));
     }
   }, [screen]);
+
+  useEffect(() => {
+    if (screen !== "round" || roundFinished) {
+      return undefined;
+    }
+
+    if (roundSecondsLeft <= 0) {
+      setRoundFinished(true);
+      resultAnim.setValue(0);
+      Animated.timing(resultAnim, {
+        duration: 620,
+        easing: Easing.out(Easing.back(1.7)),
+        toValue: 1,
+        useNativeDriver: true
+      }).start();
+      return undefined;
+    }
+
+    const timer = setTimeout(() => {
+      setRoundSecondsLeft((seconds) => Math.max(0, seconds - 1));
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [resultAnim, roundFinished, roundSecondsLeft, screen]);
+
+  useEffect(() => {
+    if (screen !== "round") {
+      return undefined;
+    }
+
+    roundProgress.stopAnimation();
+    roundProgress.setValue(1);
+
+    const progressAnimation = Animated.timing(roundProgress, {
+      duration: ROUND_SECONDS * 1000,
+      easing: Easing.linear,
+      toValue: 0,
+      useNativeDriver: false
+    });
+
+    progressAnimation.start();
+
+    return () => {
+      progressAnimation.stop();
+    };
+  }, [roundIndex, roundProgress, screen]);
 
   function openLobby(role: LobbyRole) {
     setLobbyRole(role);
@@ -217,11 +297,19 @@ export default function App() {
 
   function startRound() {
     setSelectedPlayer(null);
+    setRoundSecondsLeft(ROUND_SECONDS);
+    setRoundFinished(false);
+    resultAnim.setValue(0);
+    roundProgress.setValue(1);
     setScreen("round");
   }
 
   function nextRound() {
     setSelectedPlayer(null);
+    setRoundSecondsLeft(ROUND_SECONDS);
+    setRoundFinished(false);
+    resultAnim.setValue(0);
+    roundProgress.setValue(1);
     setRoundIndex((value) => value + 1);
   }
 
@@ -589,65 +677,113 @@ export default function App() {
             ) : null}
 
             {screen === "round" ? (
-              <View style={styles.screenGap}>
+              <View style={styles.roundScreen}>
                 <View style={styles.roundHeader}>
                   <View>
                     <Text style={styles.sectionLabel}>Ronda {roundIndex + 1}</Text>
-                    <Text style={styles.heading}>Es Tu?</Text>
+                    <Text style={styles.roundHeading}>Mais provavel</Text>
                   </View>
                   <View style={styles.timerPill}>
-                    <Text style={styles.timerValue}>15</Text>
+                    <Text style={styles.timerValue}>{roundSecondsLeft}</Text>
                     <Text style={styles.timerLabel}>seg</Text>
                   </View>
                 </View>
-
-                <View style={styles.questionCard}>
-                  <Text style={styles.questionEyebrow}>A mesa responde</Text>
-                  <Text style={styles.questionText}>{currentQuestion}</Text>
+                <View style={styles.timerTrack}>
+                  <Animated.View style={[styles.timerTrackFill, { width: roundProgressWidth }]} />
                 </View>
 
-                <View style={styles.votePanel}>
-                  <Text style={styles.inputLabel}>Escolhe uma pessoa</Text>
-                  <View style={styles.voteGrid}>
-                    {roundDemoPlayers.map((player) => {
-                      const selected = selectedPlayer === player;
-                      return (
-                        <Pressable
-                          accessibilityRole="button"
-                          key={player}
-                          onPress={() => setSelectedPlayer(player)}
-                          style={[styles.voteCard, selected && styles.voteCardSelected]}
-                        >
-                          <Text style={[styles.voteAvatar, selected && styles.voteAvatarSelected]}>
-                            {player.slice(0, 1)}
-                          </Text>
-                          <Text style={[styles.voteName, selected && styles.voteNameSelected]}>
-                            {player}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
+                {!roundFinished ? (
+                  <View style={styles.roundVoteBoard}>
+                    <View style={styles.questionCard}>
+                      <Text style={styles.questionEyebrow}>A mesa vota</Text>
+                      <Text numberOfLines={3} style={styles.questionText}>{currentQuestion}</Text>
+                    </View>
+
+                    <View style={styles.votePanel}>
+                      <View style={styles.votePanelHeader}>
+                        <Text style={styles.votePanelTitle}>Escolhe quem encaixa</Text>
+                        <Text style={styles.voteHint}>{selectedPlayer ? "voto guardado" : "toca para votar"}</Text>
+                      </View>
+                      <View style={styles.voteGrid}>
+                        {roundDemoPlayers.map((player) => {
+                          const selected = selectedPlayer === player;
+                          return (
+                            <Pressable
+                              accessibilityRole="button"
+                              disabled={roundFinished}
+                              key={player}
+                              onPress={() => setSelectedPlayer(player)}
+                              style={[styles.voteCard, selected && styles.voteCardSelected]}
+                            >
+                              <Text style={[styles.voteAvatar, selected && styles.voteAvatarSelected]}>
+                                {player.slice(0, 1)}
+                              </Text>
+                              <Text style={[styles.voteName, selected && styles.voteNameSelected]}>
+                                {player}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </View>
                   </View>
-                </View>
+                ) : (
+                  <Animated.View
+                    style={[
+                      styles.resultPanel,
+                      {
+                        opacity: resultAnim,
+                        transform: [{ translateY: resultTranslateY }, { scale: resultScale }]
+                      }
+                    ]}
+                  >
+                    <Text style={styles.resultEyebrow}>A mesa decidiu</Text>
+                    <View style={styles.resultWinnerRow}>
+                      <Text style={styles.resultWinnerAvatar}>{topResult.player.slice(0, 1)}</Text>
+                      <View style={styles.resultWinnerCopy}>
+                        <Text style={styles.resultTitle}>{topResult.player}</Text>
+                        <Text style={styles.resultText}>foi o mais votado</Text>
+                      </View>
+                      <Text style={styles.resultPercent}>{topResult.percent}%</Text>
+                    </View>
+                    <View style={styles.resultBars}>
+                      {resultRows.map((row) => (
+                        <View key={row.player} style={styles.resultBarRow}>
+                          <Text style={styles.resultBarName}>{row.player}</Text>
+                          <View style={styles.resultBarTrack}>
+                            <View
+                              style={[
+                                styles.resultBarFill,
+                                { width: `${row.percent}%` as DimensionValue }
+                              ]}
+                            />
+                          </View>
+                          <Text style={styles.resultBarPercent}>{row.percent}%</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </Animated.View>
+                )}
 
-                <View style={styles.resultPanel}>
-                  <Text style={styles.resultTitle}>
-                    {selectedPlayer ? `${selectedPlayer} esta marcado` : "Votos ainda escondidos"}
-                  </Text>
-                  <Text style={styles.resultText}>
-                    {selectedPlayer
-                      ? "Depois mostramos percentagens, empate e animacao de resultado."
-                      : "Toca num nome para simular como a votacao vai funcionar."}
-                  </Text>
-                </View>
-
-                <PosterButton
-                  icon={Vote}
-                  label="NOVA PERGUNTA"
-                  helper="avanca para a proxima ronda"
-                  variant="ember"
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={!roundFinished}
                   onPress={nextRound}
-                />
+                  style={[
+                    styles.roundNextButton,
+                    !roundFinished && styles.roundNextButtonDisabled
+                  ]}
+                >
+                  <Vote color={roundFinished ? colors.ink : colors.textSoft} size={22} strokeWidth={3} />
+                  <Text
+                    style={[
+                      styles.roundNextButtonText,
+                      !roundFinished && styles.roundNextButtonTextDisabled
+                    ]}
+                  >
+                    {roundFinished ? "NOVA PERGUNTA" : "A VOTACAO FECHA SOZINHA"}
+                  </Text>
+                </Pressable>
               </View>
             ) : null}
           </ScrollView>
@@ -2094,10 +2230,27 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: spacing.sm
   },
+  roundScreen: {
+    flex: 1,
+    gap: 10,
+    justifyContent: "flex-start",
+    minHeight: 620,
+    paddingBottom: spacing.xs
+  },
   roundHeader: {
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between"
+  },
+  roundHeading: {
+    color: colors.cream,
+    fontSize: 29,
+    fontWeight: "900",
+    letterSpacing: 0,
+    lineHeight: 32,
+    textShadowColor: colors.ink,
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 0
   },
   timerPill: {
     alignItems: "center",
@@ -2105,15 +2258,15 @@ const styles = StyleSheet.create({
     borderColor: colors.orange,
     borderRadius: radii.full,
     borderWidth: 2,
-    height: 76,
+    height: 68,
     justifyContent: "center",
-    width: 76
+    width: 68
   },
   timerValue: {
     color: colors.cream,
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: "900",
-    lineHeight: 34
+    lineHeight: 31
   },
   timerLabel: {
     color: colors.cream,
@@ -2121,29 +2274,69 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     textTransform: "uppercase"
   },
-  questionCard: {
-    backgroundColor: "rgba(255, 194, 58, 0.95)",
-    borderColor: colors.cream,
+  timerTrack: {
+    backgroundColor: "rgba(255, 245, 221, 0.12)",
+    borderColor: colors.borderSoft,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    height: 12,
+    overflow: "hidden"
+  },
+  timerTrackFill: {
+    backgroundColor: colors.gold,
+    borderRadius: radii.full,
+    height: "100%"
+  },
+  roundVoteBoard: {
+    backgroundColor: "rgba(16, 11, 5, 0.82)",
+    borderColor: "rgba(255, 194, 58, 0.42)",
     borderRadius: radii.lg,
-    borderWidth: 2,
+    borderWidth: 1,
     gap: spacing.sm,
-    padding: spacing.xl
+    padding: spacing.sm
+  },
+  questionCard: {
+    backgroundColor: colors.gold,
+    borderColor: colors.amber,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    gap: spacing.xs,
+    minHeight: 96,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm
   },
   questionEyebrow: {
     color: colors.inkSoft,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "900",
     textTransform: "uppercase"
   },
   questionText: {
     color: colors.ink,
-    fontSize: 29,
+    fontSize: 21,
     fontWeight: "900",
     letterSpacing: 0,
-    lineHeight: 36
+    lineHeight: 25
   },
   votePanel: {
-    gap: spacing.md
+    gap: spacing.xs
+  },
+  votePanelHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between"
+  },
+  votePanelTitle: {
+    color: colors.cream,
+    fontSize: 13,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  voteHint: {
+    color: colors.amber,
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase"
   },
   voteGrid: {
     flexDirection: "row",
@@ -2152,18 +2345,18 @@ const styles = StyleSheet.create({
   },
   voteCard: {
     alignItems: "center",
-    backgroundColor: "rgba(16, 11, 5, 0.84)",
-    borderColor: colors.border,
+    backgroundColor: "rgba(255, 245, 221, 0.08)",
+    borderColor: "rgba(255, 194, 58, 0.34)",
     borderRadius: radii.md,
     borderWidth: 1,
     flexDirection: "row",
     gap: spacing.sm,
-    minHeight: 66,
+    minHeight: 54,
     minWidth: "47%",
-    padding: spacing.md
+    padding: spacing.sm
   },
   voteCardSelected: {
-    backgroundColor: colors.teal,
+    backgroundColor: colors.amber,
     borderColor: colors.cream
   },
   voteAvatar: {
@@ -2186,21 +2379,118 @@ const styles = StyleSheet.create({
     color: colors.ink
   },
   resultPanel: {
-    backgroundColor: "rgba(16, 11, 5, 0.86)",
-    borderColor: colors.border,
-    borderRadius: radii.md,
+    backgroundColor: "rgba(16, 11, 5, 0.92)",
+    borderColor: colors.gold,
+    borderRadius: radii.lg,
+    borderWidth: 2,
+    gap: spacing.sm,
+    padding: spacing.md
+  },
+  resultEyebrow: {
+    color: colors.gold,
+    fontSize: 12,
+    fontWeight: "900",
+    textAlign: "center",
+    textTransform: "uppercase"
+  },
+  resultWinnerRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing.sm
+  },
+  resultWinnerAvatar: {
+    backgroundColor: colors.gold,
+    borderColor: colors.cream,
+    borderRadius: radii.full,
     borderWidth: 1,
-    gap: spacing.xs,
-    padding: spacing.lg
+    color: colors.ink,
+    fontSize: 30,
+    fontWeight: "900",
+    height: 58,
+    lineHeight: 58,
+    overflow: "hidden",
+    textAlign: "center",
+    width: 58
+  },
+  resultWinnerCopy: {
+    flex: 1
   },
   resultTitle: {
     color: colors.cream,
-    fontSize: 20,
-    fontWeight: "900"
+    fontSize: 24,
+    fontWeight: "900",
+    lineHeight: 28
   },
   resultText: {
     color: colors.textSoft,
+    fontSize: 12,
+    fontWeight: "800",
+    lineHeight: 16,
+    textTransform: "uppercase"
+  },
+  resultPercent: {
+    color: colors.gold,
+    fontSize: 34,
+    fontWeight: "900",
+    lineHeight: 38
+  },
+  resultBars: {
+    gap: spacing.xs
+  },
+  resultBarRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing.sm
+  },
+  resultBarName: {
+    color: colors.cream,
+    fontSize: 12,
+    fontWeight: "900",
+    width: 48
+  },
+  resultBarTrack: {
+    backgroundColor: "rgba(255, 245, 221, 0.1)",
+    borderRadius: radii.full,
+    flex: 1,
+    height: 10,
+    overflow: "hidden"
+  },
+  resultBarFill: {
+    backgroundColor: colors.gold,
+    borderRadius: radii.full,
+    height: "100%"
+  },
+  resultBarPercent: {
+    color: colors.gold,
+    fontSize: 12,
+    fontWeight: "900",
+    textAlign: "right",
+    width: 36
+  },
+  roundNextButton: {
+    alignItems: "center",
+    backgroundColor: colors.gold,
+    borderColor: colors.cream,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: spacing.sm,
+    justifyContent: "center",
+    minHeight: 52,
+    paddingHorizontal: spacing.md
+  },
+  roundNextButtonDisabled: {
+    backgroundColor: "rgba(16, 11, 5, 0.7)",
+    borderColor: colors.borderSoft
+  },
+  roundNextButtonText: {
+    color: colors.ink,
     fontSize: 14,
-    lineHeight: 20
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  roundNextButtonTextDisabled: {
+    color: colors.textSoft,
+    fontSize: 12
   }
 });

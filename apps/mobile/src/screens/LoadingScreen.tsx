@@ -15,6 +15,10 @@ import { colors, radii, spacing } from "../theme";
 const barBackground = require("../../assets/bar-table-background.png");
 const playpintLogo = require("../../assets/playpint-logo-cutout.png");
 
+const BOOT_ANIMATION_MS = 500;
+const BOOT_EXIT_DELAY_MS = 50;
+const PULSE_HALF_MS = 260;
+
 type LoadingScreenProps = {
   onDone: () => void;
 };
@@ -29,13 +33,13 @@ export function LoadingScreen({ onDone }: LoadingScreenProps) {
       Animated.sequence([
         Animated.timing(pulse, {
           toValue: 1,
-          duration: 1050,
+          duration: PULSE_HALF_MS,
           easing: Easing.out(Easing.quad),
           useNativeDriver: true
         }),
         Animated.timing(pulse, {
           toValue: 0,
-          duration: 1050,
+          duration: PULSE_HALF_MS,
           easing: Easing.in(Easing.quad),
           useNativeDriver: true
         })
@@ -44,7 +48,7 @@ export function LoadingScreen({ onDone }: LoadingScreenProps) {
 
     const bootAnimation = Animated.timing(progress, {
       toValue: 1,
-      duration: 6000,
+      duration: BOOT_ANIMATION_MS,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false
     });
@@ -52,7 +56,7 @@ export function LoadingScreen({ onDone }: LoadingScreenProps) {
     pulseLoop.start();
     bootAnimation.start(({ finished }) => {
       if (finished) {
-        doneTimer.current = setTimeout(onDone, 600);
+        doneTimer.current = setTimeout(onDone, BOOT_EXIT_DELAY_MS);
       }
     });
 
