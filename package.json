@@ -7,6 +7,7 @@
     "mobile:start": "pnpm --filter @playpint/mobile start",
     "mobile:android": "pnpm --filter @playpint/mobile android",
     "mobile:ios": "pnpm --filter @playpint/mobile ios",
+    "web:build": "pnpm --filter @playpint/mobile web:build",
     "typecheck": "pnpm --filter @playpint/mobile typecheck"
   }
 }

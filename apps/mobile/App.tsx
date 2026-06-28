@@ -4,6 +4,7 @@ import {
   Image,
   ImageBackground,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   SafeAreaView,
@@ -14,14 +15,17 @@ import {
   View
 } from "react-native";
 import {
+  Check,
   ChevronLeft,
   CirclePlay,
-  Crown,
   LogIn,
   QrCode,
+  SlidersHorizontal,
   UsersRound,
-  Vote
+  Vote,
+  X
 } from "lucide-react-native";
+import QRCode from "react-native-qrcode-svg";
 
 import { LoadingScreen } from "./src/screens/LoadingScreen";
 import { colors, radii, spacing } from "./src/theme";
@@ -30,13 +34,24 @@ import type { AppScreen, IconComponent, LobbyRole } from "./src/types";
 const barBackground = require("./assets/bar-table-background.png");
 const playpintLogo = require("./assets/playpint-logo-cutout.png");
 
-const samplePlayers = ["Leo", "Santi", "Marta", "Rita"];
+const roundDemoPlayers = ["Leo", "Santi", "Marta", "Rita"];
 
 const esTuQuestions = [
   "Quem e mais provavel que mande mensagem ao ex depois da meia-noite?",
   "Quem e mais provavel que conte uma historia e exagere metade?",
   "Quem e mais provavel que chegue atrasado e ainda culpe o transito?",
   "Quem e mais provavel que ganhe isto sem admitir que queria ganhar?"
+];
+
+const esTuModeOptions = [
+  { id: "quem-e-quem", title: "Quem e quem", detail: "A frase escolhe uma pessoa da mesa" },
+  { id: "mais-provavel", title: "Mais provavel", detail: "Todos votam em quem encaixa melhor" },
+  { id: "quem-nunca", title: "Quem nunca", detail: "Perguntas de confissao para o grupo" },
+  { id: "voto-relampago", title: "Voto relampago", detail: "Rondas rapidas com pouca conversa" },
+  { id: "duelo", title: "Duelo", detail: "Dois jogadores frente a frente" },
+  { id: "ranking", title: "Ranking", detail: "Ordena a mesa do mais ao menos" },
+  { id: "historias", title: "Historias", detail: "Alguem tem de contar uma historia" },
+  { id: "verdade-ou-mito", title: "Verdade ou mito", detail: "Descobre se a frase e real ou inventada" }
 ];
 
 type PosterButtonProps = {
@@ -94,6 +109,14 @@ export default function App() {
   const [roomCode, setRoomCode] = useState("4829");
   const [nickname, setNickname] = useState("");
   const [lobbyRole, setLobbyRole] = useState<LobbyRole>("host");
+  const [voteSeconds, setVoteSeconds] = useState(15);
+  const [playerLimit, setPlayerLimit] = useState(8);
+  const [selectedEsTuModes, setSelectedEsTuModes] = useState<string[]>([
+    "quem-e-quem",
+    "mais-provavel"
+  ]);
+  const [modeMenuOpen, setModeMenuOpen] = useState(false);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
   const [roundIndex, setRoundIndex] = useState(0);
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
 
@@ -101,14 +124,60 @@ export default function App() {
     () => esTuQuestions[roundIndex % esTuQuestions.length],
     [roundIndex]
   );
+  const selectedModePreview = useMemo(() => {
+    const selected = esTuModeOptions.filter((mode) => selectedEsTuModes.includes(mode.id));
+
+    if (selected.length <= 2) {
+      return selected.map((mode) => mode.title).join(" + ");
+    }
+
+    const firstMode = selected[0]?.title ?? "Modo";
+    const secondMode = selected[1]?.title ?? "modo";
+
+    return `${firstMode} + ${secondMode} +${selected.length - 2}`;
+  }, [selectedEsTuModes]);
+  const invitePayload = useMemo(
+    () =>
+      `playpint://join?code=${encodeURIComponent(roomCode)}&room=${encodeURIComponent(
+        roomName || "Sala Playpint"
+      )}`,
+    [roomCode, roomName]
+  );
+  const lobbyPlayers = useMemo(() => {
+    if (lobbyRole === "client") {
+      return [{ id: "you", name: nickname || "Tu", status: "pronto" }];
+    }
+
+    return [{ id: "host", name: "Leo", status: "host" }];
+  }, [lobbyRole, nickname]);
 
   const finishBoot = useCallback(() => {
     setBootComplete(true);
   }, []);
 
+  const canScroll = screen === "join" || screen === "round";
+  const canEditModes = screen === "host" || lobbyRole === "host";
+  const visibleModeOptions = canEditModes
+    ? esTuModeOptions
+    : esTuModeOptions.filter((mode) => selectedEsTuModes.includes(mode.id));
+
   function openLobby(role: LobbyRole) {
     setLobbyRole(role);
     setScreen("lobby");
+  }
+
+  function toggleEsTuMode(modeId: string) {
+    if (!canEditModes) {
+      return;
+    }
+
+    setSelectedEsTuModes((current) => {
+      if (!current.includes(modeId)) {
+        return [...current, modeId];
+      }
+
+      return current.length === 1 ? current : current.filter((id) => id !== modeId);
+    });
   }
 
   function startRound() {
@@ -136,9 +205,9 @@ export default function App() {
         >
           <ScrollView
             contentContainerStyle={styles.scrollContent}
-            bounces={screen !== "home"}
+            bounces={canScroll}
             keyboardShouldPersistTaps="handled"
-            scrollEnabled={screen !== "home"}
+            scrollEnabled={canScroll}
             showsVerticalScrollIndicator={false}
           >
             {screen !== "home" ? <BackButton onPress={() => setScreen("home")} /> : null}
@@ -172,42 +241,105 @@ export default function App() {
             ) : null}
 
             {screen === "host" ? (
-              <View style={styles.screenGap}>
-                <View style={styles.sectionIntro}>
-                  <Text style={styles.sectionLabel}>Criar sala</Text>
-                  <Text style={styles.heading}>Prepara o Es Tu?</Text>
-                  <Text style={styles.bodyText}>
-                    Mete o nome da mesa e gera o codigo para os teus amigos entrarem.
-                  </Text>
+              <View style={styles.hostScreen}>
+                <View style={styles.hostHero}>
+                  <Image source={playpintLogo} resizeMode="contain" style={styles.hostLogoImage} />
+                  <Text style={styles.sectionLabel}>Menu do host</Text>
+                  <Text style={styles.hostHeading}>Prepara a mesa</Text>
                 </View>
 
-                <View style={styles.formGroup}>
-                  <Text style={styles.inputLabel}>Nome da sala</Text>
+                <View style={styles.hostCard}>
+                  <Text style={styles.hostCardLabel}>Nome da sala</Text>
                   <TextInput
                     value={roomName}
                     onChangeText={setRoomName}
                     placeholder="Ex: Mesa 7"
                     placeholderTextColor={colors.muted}
-                    style={styles.input}
+                    style={styles.hostInput}
                   />
                 </View>
 
-                <View style={styles.rulePanel}>
-                  <View style={styles.ruleIcon}>
-                    <Vote color={colors.ink} size={26} strokeWidth={3} />
+                <View style={styles.hostSettingsGrid}>
+                  <View style={styles.hostControlPanel}>
+                    <View style={styles.hostControlHeader}>
+                      <Text style={styles.hostCardLabel}>Tempo</Text>
+                      <Text style={styles.hostControlValue}>{voteSeconds}s</Text>
+                    </View>
+                    <View style={styles.hostSegmentRow}>
+                      {[10, 15, 20].map((seconds) => (
+                        <Pressable
+                          accessibilityRole="button"
+                          key={seconds}
+                          onPress={() => setVoteSeconds(seconds)}
+                          style={[
+                            styles.hostSegment,
+                            voteSeconds === seconds && styles.hostSegmentActive
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.hostSegmentText,
+                              voteSeconds === seconds && styles.hostSegmentTextActive
+                            ]}
+                          >
+                            {seconds}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
                   </View>
-                  <View style={styles.ruleCopy}>
-                    <Text style={styles.ruleTitle}>Regra base</Text>
-                    <Text style={styles.ruleText}>
-                      O host le a pergunta, todos votam numa pessoa e a mesa decide a consequencia.
-                    </Text>
+                  <View style={styles.hostControlPanel}>
+                    <View style={styles.hostControlHeader}>
+                      <Text style={styles.hostCardLabel}>Jogadores</Text>
+                      <Text style={styles.hostControlValue}>{playerLimit}</Text>
+                    </View>
+                    <View style={styles.hostSegmentRow}>
+                      {[6, 8, 10].map((limit) => (
+                        <Pressable
+                          accessibilityRole="button"
+                          key={limit}
+                          onPress={() => setPlayerLimit(limit)}
+                          style={[
+                            styles.hostSegment,
+                            playerLimit === limit && styles.hostSegmentActive
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.hostSegmentText,
+                              playerLimit === limit && styles.hostSegmentTextActive
+                            ]}
+                          >
+                            {limit}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
                   </View>
+                </View>
+
+                <View style={styles.hostModesPanel}>
+                  <View style={styles.hostControlHeader}>
+                    <Text style={styles.hostCardLabel}>Modos de jogo</Text>
+                    <Text style={styles.hostModesCount}>{selectedEsTuModes.length} ativos</Text>
+                  </View>
+                  <Text numberOfLines={1} style={styles.hostModesPreview}>
+                    {selectedModePreview}
+                  </Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setModeMenuOpen(true)}
+                    style={styles.hostModeMenuButton}
+                  >
+                    <SlidersHorizontal color={colors.ink} size={22} strokeWidth={3} />
+                    <Text style={styles.hostModeMenuButtonText}>Escolher modos</Text>
+                  </Pressable>
                 </View>
 
                 <PosterButton
                   icon={QrCode}
-                  label="GERAR CODIGO"
-                  helper={`sala ${roomName || "sem nome"} pronta para jogar`}
+                  label="ABRIR LOBBY"
+                  helper={`${voteSeconds}s - ${playerLimit} jogadores - ${selectedEsTuModes.length} modos`}
                   onPress={() => openLobby("host")}
                 />
               </View>
@@ -278,43 +410,91 @@ export default function App() {
                   <View style={styles.lobbyMiniCard}>
                     <UsersRound color={colors.gold} size={25} strokeWidth={3} />
                     <View style={styles.lobbyMiniCopy}>
-                      <Text style={styles.lobbyMiniValue}>{samplePlayers.length}/8</Text>
+                      <Text style={styles.lobbyMiniValue}>{lobbyPlayers.length}/{playerLimit}</Text>
                       <Text style={styles.lobbyMiniLabel}>na mesa</Text>
                     </View>
                   </View>
-                  <View style={styles.lobbyMiniCard}>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setQrModalOpen(true)}
+                    style={({ pressed }) => [
+                      styles.lobbyMiniCard,
+                      styles.lobbyQrCard,
+                      pressed && styles.lobbyMiniCardPressed
+                    ]}
+                  >
                     <QrCode color={colors.gold} size={25} strokeWidth={3} />
                     <View style={styles.lobbyMiniCopy}>
                       <Text style={styles.lobbyMiniValue}>QR</Text>
-                      <Text style={styles.lobbyMiniLabel}>em breve</Text>
+                      <Text style={styles.lobbyMiniLabel}>abrir convite</Text>
                     </View>
-                  </View>
+                  </Pressable>
                 </View>
 
                 <View style={styles.playersPanel}>
                   <View style={styles.playersHeader}>
-                    <Text style={styles.inputLabel}>Jogadores</Text>
-                    <Text style={styles.playerCount}>{samplePlayers.length}/8</Text>
+                    <View>
+                      <Text style={styles.inputLabel}>Mesa</Text>
+                      <Text style={styles.playersHint}>
+                        So aparece quem entrar na sala
+                      </Text>
+                    </View>
+                    <View style={styles.playerCountBadge}>
+                      <Text style={styles.playerCount}>{lobbyPlayers.length}/{playerLimit}</Text>
+                    </View>
                   </View>
-                  <View style={styles.playerGrid}>
-                    {samplePlayers.map((player, index) => (
-                      <View key={player} style={styles.playerCard}>
-                        <Text style={styles.playerAvatar}>{player.slice(0, 1)}</Text>
-                        <Text style={styles.playerName}>{player}</Text>
-                        <Text style={styles.playerStatus}>{index === 0 ? "host" : "pronto"}</Text>
+                  <View style={styles.playerList}>
+                    {lobbyPlayers.map((player) => (
+                      <View key={player.id} style={styles.playerCard}>
+                        <Text style={styles.playerAvatar}>{player.name.slice(0, 1)}</Text>
+                        <View style={styles.playerCopy}>
+                          <Text style={styles.playerName}>{player.name}</Text>
+                          <View style={styles.playerStatusPill}>
+                            <Text style={styles.playerStatus}>{player.status}</Text>
+                          </View>
+                        </View>
                       </View>
+                    ))}
+                    <View style={styles.waitingPlayerCard}>
+                      <View style={styles.waitingIcon}>
+                        <UsersRound color={colors.gold} size={22} strokeWidth={3} />
+                      </View>
+                      <View style={styles.playerCopy}>
+                        <Text style={styles.waitingTitle}>Ainda ninguem entrou</Text>
+                        <Text style={styles.waitingText}>Mostra o QR ou partilha o codigo {roomCode}.</Text>
+                      </View>
+                    </View>
+                  </View>
+                  <View style={styles.seatRail}>
+                    {Array.from({ length: Math.min(playerLimit, 10) }).map((_, index) => (
+                      <View
+                        key={`seat-${index}`}
+                        style={[
+                          styles.seatDot,
+                          index < lobbyPlayers.length && styles.seatDotTaken
+                        ]}
+                      />
                     ))}
                   </View>
                 </View>
 
-                <View style={styles.nextGamePanel}>
-                  <Crown color={colors.gold} size={30} strokeWidth={3} />
-                  <View style={styles.nextGameCopy}>
-                    <Text style={styles.nextGameTitle}>A seguir: Es Tu?</Text>
-                    <Text style={styles.nextGameSubtitle}>
-                      Quando todos estiverem prontos, o host lanca a primeira pergunta.
+                <View style={styles.lobbyModesPanel}>
+                  <View style={styles.lobbyModesCopy}>
+                    <Text style={styles.lobbyModesLabel}>Modos do jogo</Text>
+                    <Text numberOfLines={1} style={styles.lobbyModesText}>
+                      {selectedEsTuModes.length} ativos
                     </Text>
                   </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setModeMenuOpen(true)}
+                    style={({ pressed }) => [
+                      styles.lobbyModesButton,
+                      pressed && styles.lobbyModesButtonPressed
+                    ]}
+                  >
+                    <Text style={styles.lobbyModesButtonText}>Ver modos</Text>
+                  </Pressable>
                 </View>
 
                 <PosterButton
@@ -347,7 +527,7 @@ export default function App() {
                 <View style={styles.votePanel}>
                   <Text style={styles.inputLabel}>Escolhe uma pessoa</Text>
                   <View style={styles.voteGrid}>
-                    {samplePlayers.map((player) => {
+                    {roundDemoPlayers.map((player) => {
                       const selected = selectedPlayer === player;
                       return (
                         <Pressable
@@ -391,6 +571,147 @@ export default function App() {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setModeMenuOpen(false)}
+        transparent
+        visible={modeMenuOpen}
+      >
+        <View style={styles.modeModalBackdrop}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setModeMenuOpen(false)}
+            style={StyleSheet.absoluteFill}
+          />
+          <SafeAreaView style={styles.modeModalSafeArea}>
+            <View style={styles.modeSheet}>
+              <View style={styles.modeSheetHeader}>
+                <View>
+                  <Text style={styles.sectionLabel}>Modos de jogo</Text>
+                  <Text style={styles.modeSheetTitle}>
+                    {canEditModes ? "Escolhe as rondas" : "Modos da sala"}
+                  </Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setModeMenuOpen(false)}
+                  style={styles.modeCloseButton}
+                >
+                  <X color={colors.cream} size={22} strokeWidth={3} />
+                </Pressable>
+              </View>
+
+              <Text style={styles.modeSheetText}>
+                {canEditModes
+                  ? "So o host pode meter ou tirar modos. O jogo alterna entre os escolhidos."
+                  : "So o host pode alterar estes modos. Tu so consegues ver o que esta ativo."}
+              </Text>
+
+              <ScrollView
+                contentContainerStyle={styles.modeListContent}
+                showsVerticalScrollIndicator={false}
+                style={styles.modeList}
+              >
+                {visibleModeOptions.map((mode) => {
+                  const active = selectedEsTuModes.includes(mode.id);
+
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      key={mode.id}
+                      disabled={!canEditModes}
+                      onPress={() => toggleEsTuMode(mode.id)}
+                      style={[styles.modeRow, active && styles.modeRowActive]}
+                    >
+                      <View style={styles.modeRowCopy}>
+                        <Text style={[styles.modeRowTitle, active && styles.modeRowTitleActive]}>
+                          {mode.title}
+                        </Text>
+                        <Text style={[styles.modeRowDetail, active && styles.modeRowDetailActive]}>
+                          {mode.detail}
+                        </Text>
+                      </View>
+                      <View style={[styles.modeCheck, active && styles.modeCheckActive]}>
+                        {active ? <Check color={colors.ink} size={18} strokeWidth={4} /> : null}
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setModeMenuOpen(false)}
+                style={styles.modeDoneButton}
+              >
+                <Text style={styles.modeDoneButtonText}>
+                  {canEditModes ? "Guardar modos" : "Fechar modos"}
+                </Text>
+              </Pressable>
+            </View>
+          </SafeAreaView>
+        </View>
+      </Modal>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setQrModalOpen(false)}
+        transparent
+        visible={qrModalOpen}
+      >
+        <View style={styles.qrModalBackdrop}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setQrModalOpen(false)}
+            style={StyleSheet.absoluteFill}
+          />
+          <SafeAreaView style={styles.qrModalSafeArea}>
+            <View style={styles.qrSheet}>
+              <View style={styles.qrSheetHeader}>
+                <View>
+                  <Text style={styles.sectionLabel}>Convite da sala</Text>
+                  <Text style={styles.qrSheetTitle}>Mostra este QR</Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setQrModalOpen(false)}
+                  style={styles.modeCloseButton}
+                >
+                  <X color={colors.cream} size={22} strokeWidth={3} />
+                </Pressable>
+              </View>
+
+              <View style={styles.qrFrame}>
+                <QRCode
+                  backgroundColor={colors.cream}
+                  color={colors.ink}
+                  quietZone={10}
+                  size={214}
+                  value={invitePayload}
+                />
+              </View>
+
+              <View style={styles.qrCodeStrip}>
+                <Text style={styles.qrCodeLabel}>Codigo</Text>
+                <Text style={styles.qrCodeValue}>{roomCode}</Text>
+              </View>
+
+              <Text style={styles.qrHint}>
+                Quem estiver contigo pode ler o QR ou escrever o codigo para entrar.
+              </Text>
+
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setQrModalOpen(false)}
+                style={styles.qrDoneButton}
+              >
+                <Text style={styles.modeDoneButtonText}>Fechar QR</Text>
+              </Pressable>
+            </View>
+          </SafeAreaView>
+        </View>
+      </Modal>
     </ImageBackground>
   );
 }
@@ -413,8 +734,8 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xl,
-    paddingTop: spacing.md
+    paddingBottom: spacing.md,
+    paddingTop: spacing.sm
   },
   homeScreen: {
     flexGrow: 1,
@@ -545,7 +866,7 @@ const styles = StyleSheet.create({
     elevation: 8,
     flexDirection: "row",
     gap: spacing.md,
-    minHeight: 104,
+    minHeight: 100,
     paddingHorizontal: spacing.lg,
     shadowColor: colors.orange,
     shadowOffset: { width: 0, height: 8 },
@@ -570,9 +891,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "rgba(16, 11, 5, 0.16)",
     borderRadius: radii.md,
-    height: 58,
+    height: 56,
     justifyContent: "center",
-    width: 58
+    width: 56
   },
   posterIconEmber: {
     backgroundColor: "rgba(255, 242, 200, 0.18)"
@@ -582,10 +903,10 @@ const styles = StyleSheet.create({
   },
   posterButtonLabel: {
     color: colors.ink,
-    fontSize: 30,
+    fontSize: 29,
     fontWeight: "900",
     letterSpacing: 0,
-    lineHeight: 34
+    lineHeight: 33
   },
   posterButtonLabelGhost: {
     color: colors.gold,
@@ -594,7 +915,7 @@ const styles = StyleSheet.create({
   },
   posterButtonHelper: {
     color: colors.inkSoft,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "900",
     lineHeight: 17,
     marginTop: spacing.xs,
@@ -612,7 +933,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: "row",
     gap: spacing.xs,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm
   },
@@ -712,25 +1033,188 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18
   },
+  hostScreen: {
+    gap: spacing.md,
+    paddingBottom: spacing.sm
+  },
+  hostHero: {
+    alignItems: "center",
+    gap: 2
+  },
+  hostLogoImage: {
+    alignSelf: "center",
+    height: 82,
+    marginBottom: -10,
+    width: "72%"
+  },
+  hostHeading: {
+    color: colors.cream,
+    fontSize: 34,
+    fontWeight: "900",
+    letterSpacing: 0,
+    lineHeight: 38,
+    textAlign: "center"
+  },
+  hostCard: {
+    backgroundColor: "rgba(16, 11, 5, 0.76)",
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    gap: spacing.sm,
+    padding: spacing.md
+  },
+  hostCardLabel: {
+    color: colors.textSoft,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0,
+    textTransform: "uppercase"
+  },
+  hostInput: {
+    color: colors.cream,
+    fontSize: 28,
+    fontWeight: "900",
+    letterSpacing: 0,
+    minHeight: 42,
+    padding: 0
+  },
+  hostSettingsGrid: {
+    flexDirection: "row",
+    gap: spacing.sm
+  },
+  hostControlPanel: {
+    backgroundColor: "rgba(16, 11, 5, 0.62)",
+    borderColor: colors.borderSoft,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    flex: 1,
+    gap: spacing.sm,
+    minHeight: 86,
+    padding: spacing.md
+  },
+  hostControlHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between"
+  },
+  hostControlValue: {
+    color: colors.gold,
+    fontSize: 20,
+    fontWeight: "900",
+    letterSpacing: 0
+  },
+  hostSegmentRow: {
+    flexDirection: "row",
+    gap: spacing.xs
+  },
+  hostSegment: {
+    alignItems: "center",
+    backgroundColor: "rgba(255, 245, 221, 0.08)",
+    borderColor: colors.borderSoft,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    flex: 1,
+    minHeight: 40,
+    justifyContent: "center"
+  },
+  hostSegmentActive: {
+    backgroundColor: colors.gold,
+    borderColor: colors.cream
+  },
+  hostSegmentText: {
+    color: colors.cream,
+    fontSize: 15,
+    fontWeight: "900"
+  },
+  hostSegmentTextActive: {
+    color: colors.ink
+  },
+  hostModesPanel: {
+    backgroundColor: "rgba(16, 11, 5, 0.72)",
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    gap: spacing.sm,
+    padding: spacing.md
+  },
+  hostModesCount: {
+    color: colors.gold,
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  hostModesPreview: {
+    color: colors.cream,
+    fontSize: 19,
+    fontWeight: "900",
+    lineHeight: 24
+  },
+  hostModeMenuButton: {
+    alignItems: "center",
+    alignSelf: "stretch",
+    backgroundColor: colors.gold,
+    borderColor: colors.cream,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: spacing.sm,
+    justifyContent: "center",
+    minHeight: 48
+  },
+  hostModeMenuButtonText: {
+    color: colors.ink,
+    fontSize: 14,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  hostModeDetailActive: {
+    color: colors.inkSoft
+  },
+  hostRulePanel: {
+    alignItems: "center",
+    backgroundColor: "rgba(16, 11, 5, 0.72)",
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: spacing.sm,
+    padding: spacing.md
+  },
+  hostRuleCopy: {
+    flex: 1,
+    gap: spacing.xs
+  },
+  hostRuleTitle: {
+    color: colors.cream,
+    fontSize: 17,
+    fontWeight: "900"
+  },
+  hostRuleText: {
+    color: colors.textSoft,
+    fontSize: 12,
+    fontWeight: "800",
+    lineHeight: 16
+  },
   lobbyScreen: {
-    gap: spacing.lg
+    gap: spacing.sm,
+    paddingBottom: spacing.sm
   },
   lobbyHero: {
     alignItems: "center",
-    gap: spacing.xs
+    gap: 2
   },
   lobbyLogoImage: {
     alignSelf: "center",
-    height: 96,
-    marginBottom: -14,
-    width: "76%"
+    height: 66,
+    marginBottom: -10,
+    width: "66%"
   },
   lobbyHeading: {
     color: colors.cream,
-    fontSize: 33,
+    fontSize: 28,
     fontWeight: "900",
     letterSpacing: 0,
-    lineHeight: 37,
+    lineHeight: 32,
     textAlign: "center"
   },
   roomCodeStage: {
@@ -739,8 +1223,8 @@ const styles = StyleSheet.create({
     borderColor: colors.gold,
     borderRadius: radii.lg,
     borderWidth: 1,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xl
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md
   },
   roomCodeEyebrow: {
     color: colors.textSoft,
@@ -751,29 +1235,29 @@ const styles = StyleSheet.create({
   },
   roomCodeHero: {
     color: colors.gold,
-    fontSize: 76,
+    fontSize: 58,
     fontWeight: "900",
     letterSpacing: 0,
-    lineHeight: 84
+    lineHeight: 62
   },
   roomCodeRule: {
     backgroundColor: colors.orange,
     borderRadius: radii.full,
-    height: 4,
-    marginBottom: spacing.sm,
+    height: 3,
+    marginBottom: spacing.xs,
     marginTop: spacing.xs,
-    width: 86
+    width: 72
   },
   roomCodeHint: {
     color: colors.cream,
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: "900",
-    lineHeight: 21,
+    lineHeight: 16,
     textAlign: "center"
   },
   lobbyInfoRow: {
     flexDirection: "row",
-    gap: spacing.md
+    gap: spacing.sm
   },
   lobbyMiniCard: {
     alignItems: "center",
@@ -783,31 +1267,38 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flex: 1,
     flexDirection: "row",
-    gap: spacing.sm,
-    minHeight: 72,
-    padding: spacing.md
+    gap: spacing.xs,
+    minHeight: 56,
+    padding: spacing.sm
+  },
+  lobbyQrCard: {
+    borderColor: colors.gold
+  },
+  lobbyMiniCardPressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.98 }]
   },
   lobbyMiniCopy: {
     flex: 1
   },
   lobbyMiniValue: {
     color: colors.cream,
-    fontSize: 21,
+    fontSize: 18,
     fontWeight: "900",
     letterSpacing: 0
   },
   lobbyMiniLabel: {
     color: colors.textSoft,
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: "900",
     textTransform: "uppercase"
   },
   playersPanel: {
-    backgroundColor: "rgba(16, 11, 5, 0.54)",
+    backgroundColor: "rgba(16, 11, 5, 0.62)",
     borderColor: colors.borderSoft,
     borderRadius: radii.lg,
     borderWidth: 1,
-    gap: spacing.md,
+    gap: spacing.sm,
     padding: spacing.md
   },
   playersHeader: {
@@ -815,70 +1306,369 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between"
   },
+  playersHint: {
+    color: colors.textSoft,
+    fontSize: 11,
+    fontWeight: "800",
+    lineHeight: 15,
+    marginTop: 2
+  },
+  playerCountBadge: {
+    alignItems: "center",
+    backgroundColor: "rgba(255, 194, 58, 0.12)",
+    borderColor: colors.border,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    minWidth: 52,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5
+  },
   playerCount: {
-    color: colors.teal,
+    color: colors.gold,
     fontSize: 14,
     fontWeight: "900"
   },
-  playerGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+  playerList: {
     gap: spacing.sm
   },
   playerCard: {
     alignItems: "center",
-    backgroundColor: "rgba(255, 245, 221, 0.07)",
-    borderColor: colors.borderSoft,
-    borderRadius: radii.full,
+    backgroundColor: "rgba(255, 245, 221, 0.08)",
+    borderColor: colors.gold,
+    borderRadius: radii.lg,
     borderWidth: 1,
     flexDirection: "row",
     gap: spacing.sm,
-    minWidth: "47%",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm
+    minHeight: 56,
+    padding: spacing.sm
   },
   playerAvatar: {
-    color: colors.gold,
-    fontSize: 20,
+    color: colors.ink,
+    backgroundColor: colors.gold,
+    borderRadius: radii.full,
+    fontSize: 22,
     fontWeight: "900",
-    minWidth: 20,
-    textAlign: "center"
+    height: 38,
+    lineHeight: 38,
+    overflow: "hidden",
+    textAlign: "center",
+    width: 38
+  },
+  playerCopy: {
+    flex: 1,
+    gap: 2
   },
   playerName: {
     color: colors.cream,
-    flex: 1,
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "900"
   },
+  playerStatusPill: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255, 194, 58, 0.14)",
+    borderRadius: radii.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2
+  },
   playerStatus: {
-    color: colors.textSoft,
-    fontSize: 11,
-    fontWeight: "800",
+    color: colors.gold,
+    fontSize: 10,
+    fontWeight: "900",
     textTransform: "uppercase"
   },
-  nextGamePanel: {
+  waitingPlayerCard: {
     alignItems: "center",
-    backgroundColor: "rgba(16, 11, 5, 0.68)",
+    backgroundColor: "rgba(16, 11, 5, 0.72)",
+    borderColor: colors.borderSoft,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: spacing.sm,
+    minHeight: 58,
+    padding: spacing.sm
+  },
+  waitingIcon: {
+    alignItems: "center",
+    backgroundColor: "rgba(255, 194, 58, 0.12)",
+    borderRadius: radii.full,
+    height: 38,
+    justifyContent: "center",
+    width: 38
+  },
+  waitingTitle: {
+    color: colors.cream,
+    fontSize: 16,
+    fontWeight: "900",
+    lineHeight: 18
+  },
+  waitingText: {
+    color: colors.textSoft,
+    fontSize: 12,
+    fontWeight: "800",
+    lineHeight: 15
+  },
+  seatRail: {
+    flexDirection: "row",
+    gap: spacing.xs
+  },
+  seatDot: {
+    backgroundColor: "rgba(255, 245, 221, 0.18)",
+    borderRadius: radii.full,
+    flex: 1,
+    height: 5
+  },
+  seatDotTaken: {
+    backgroundColor: colors.gold
+  },
+  lobbyModesPanel: {
+    alignItems: "center",
+    backgroundColor: "rgba(16, 11, 5, 0.62)",
     borderColor: colors.border,
     borderRadius: radii.lg,
     borderWidth: 1,
     flexDirection: "row",
     gap: spacing.md,
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm
+  },
+  lobbyModesCopy: {
+    flex: 1,
+    gap: 2
+  },
+  lobbyModesLabel: {
+    color: colors.textSoft,
+    fontSize: 10,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  lobbyModesText: {
+    color: colors.cream,
+    fontSize: 15,
+    fontWeight: "900",
+    lineHeight: 18
+  },
+  lobbyModesButton: {
+    alignItems: "center",
+    backgroundColor: colors.gold,
+    borderColor: colors.cream,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    minHeight: 38,
+    justifyContent: "center",
+    paddingHorizontal: spacing.md
+  },
+  lobbyModesButtonPressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.98 }]
+  },
+  lobbyModesButtonText: {
+    color: colors.ink,
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  modeModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(5, 4, 3, 0.72)",
+    justifyContent: "flex-end"
+  },
+  modeModalSafeArea: {
+    flex: 1,
+    justifyContent: "flex-end"
+  },
+  modeSheet: {
+    backgroundColor: "rgba(16, 11, 5, 0.98)",
+    borderColor: colors.border,
+    borderTopLeftRadius: radii.lg,
+    borderTopRightRadius: radii.lg,
+    borderWidth: 1,
+    gap: spacing.md,
+    maxHeight: "86%",
+    padding: spacing.lg
+  },
+  modeSheetHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between"
+  },
+  modeSheetTitle: {
+    color: colors.cream,
+    fontSize: 29,
+    fontWeight: "900",
+    letterSpacing: 0,
+    lineHeight: 34
+  },
+  modeCloseButton: {
+    alignItems: "center",
+    backgroundColor: "rgba(255, 245, 221, 0.09)",
+    borderColor: colors.borderSoft,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    height: 44,
+    justifyContent: "center",
+    width: 44
+  },
+  modeSheetText: {
+    color: colors.textSoft,
+    fontSize: 13,
+    fontWeight: "800",
+    lineHeight: 18
+  },
+  modeList: {
+    maxHeight: 430
+  },
+  modeListContent: {
+    gap: spacing.sm,
+    paddingBottom: spacing.xs
+  },
+  modeRow: {
+    alignItems: "center",
+    backgroundColor: "rgba(255, 245, 221, 0.07)",
+    borderColor: colors.borderSoft,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: spacing.md,
+    minHeight: 74,
     padding: spacing.md
   },
-  nextGameCopy: {
+  modeRowActive: {
+    backgroundColor: "rgba(255, 194, 58, 0.96)",
+    borderColor: colors.cream
+  },
+  modeRowCopy: {
     flex: 1,
     gap: spacing.xs
   },
-  nextGameTitle: {
+  modeRowTitle: {
     color: colors.cream,
-    fontSize: 19,
-    fontWeight: "900"
+    fontSize: 18,
+    fontWeight: "900",
+    lineHeight: 22
   },
-  nextGameSubtitle: {
+  modeRowTitleActive: {
+    color: colors.ink
+  },
+  modeRowDetail: {
+    color: colors.textSoft,
+    fontSize: 12,
+    fontWeight: "800",
+    lineHeight: 16
+  },
+  modeRowDetailActive: {
+    color: colors.inkSoft
+  },
+  modeCheck: {
+    alignItems: "center",
+    backgroundColor: "rgba(255, 245, 221, 0.08)",
+    borderColor: colors.borderSoft,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    height: 32,
+    justifyContent: "center",
+    width: 32
+  },
+  modeCheckActive: {
+    backgroundColor: colors.cream,
+    borderColor: colors.ink
+  },
+  modeDoneButton: {
+    alignItems: "center",
+    backgroundColor: colors.gold,
+    borderColor: colors.cream,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    minHeight: 54,
+    justifyContent: "center"
+  },
+  modeDoneButtonText: {
+    color: colors.ink,
+    fontSize: 16,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  qrModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(5, 4, 3, 0.78)",
+    justifyContent: "center"
+  },
+  qrModalSafeArea: {
+    flex: 1,
+    justifyContent: "center",
+    padding: spacing.lg
+  },
+  qrSheet: {
+    alignItems: "center",
+    backgroundColor: "rgba(16, 11, 5, 0.98)",
+    borderColor: colors.gold,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    gap: spacing.md,
+    padding: spacing.lg
+  },
+  qrSheetHeader: {
+    alignItems: "center",
+    alignSelf: "stretch",
+    flexDirection: "row",
+    justifyContent: "space-between"
+  },
+  qrSheetTitle: {
+    color: colors.cream,
+    fontSize: 27,
+    fontWeight: "900",
+    letterSpacing: 0,
+    lineHeight: 32
+  },
+  qrFrame: {
+    alignItems: "center",
+    backgroundColor: colors.cream,
+    borderColor: "#FFE079",
+    borderRadius: radii.lg,
+    borderWidth: 5,
+    justifyContent: "center",
+    padding: spacing.sm
+  },
+  qrCodeStrip: {
+    alignItems: "center",
+    backgroundColor: "rgba(255, 194, 58, 0.12)",
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    gap: 2,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.sm
+  },
+  qrCodeLabel: {
+    color: colors.textSoft,
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  qrCodeValue: {
+    color: colors.gold,
+    fontSize: 42,
+    fontWeight: "900",
+    letterSpacing: 0,
+    lineHeight: 46
+  },
+  qrHint: {
     color: colors.textSoft,
     fontSize: 13,
-    lineHeight: 18
+    fontWeight: "800",
+    lineHeight: 18,
+    maxWidth: 280,
+    textAlign: "center"
+  },
+  qrDoneButton: {
+    alignItems: "center",
+    alignSelf: "stretch",
+    backgroundColor: colors.gold,
+    borderColor: colors.cream,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    minHeight: 54,
+    justifyContent: "center"
   },
   roundHeader: {
     alignItems: "center",
