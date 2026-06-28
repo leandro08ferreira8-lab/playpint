@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "Playpint",
+    "slug": "playpint",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "bundleIdentifier": "com.leandroferreira.playpint",
+      "supportsTablet": false
+    },
+    "android": {
+      "edgeToEdgeEnabled": true,
+      "package": "com.leandroferreira.playpint"
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
