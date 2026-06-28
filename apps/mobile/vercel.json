@@ -1,7 +1,7 @@
 {
   "buildCommand": "pnpm web:build",
   "installCommand": "pnpm install --frozen-lockfile",
-  "outputDirectory": "apps/mobile/dist",
+  "outputDirectory": "dist",
   "rewrites": [
     {
       "source": "/(.*)",
