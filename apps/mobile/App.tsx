@@ -42,7 +42,7 @@ const ROUND_SECONDS = 15;
 const roundDemoPlayers = ["Leo", "Santi", "Marta", "Rita"];
 
 const esTuQuestions = [
-  "Quem e mais provavel que mande mensagem ao ex depois da meia-noite?",
+  "Quem e mais provavel que mande mensagem ao ex de madrugada?",
   "Quem e mais provavel que conte uma historia e exagere metade?",
   "Quem e mais provavel que chegue atrasado e ainda culpe o transito?",
   "Quem e mais provavel que ganhe isto sem admitir que queria ganhar?"
@@ -109,6 +109,7 @@ function BackButton({ onPress }: BackButtonProps) {
 
 export default function App() {
   const codeInputRef = useRef<TextInput>(null);
+  const screenScrollRef = useRef<ScrollView>(null);
   const resultAnim = useRef(new Animated.Value(0)).current;
   const roundProgress = useRef(new Animated.Value(1)).current;
   const [bootComplete, setBootComplete] = useState(false);
@@ -202,10 +203,29 @@ export default function App() {
     : esTuModeOptions.filter((mode) => selectedEsTuModes.includes(mode.id));
 
   useEffect(() => {
+    screenScrollRef.current?.scrollTo({ animated: false, y: 0 });
+
     if (Platform.OS === "web" && typeof window !== "undefined") {
       window.requestAnimationFrame(() => window.scrollTo(0, 0));
     }
   }, [screen]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") {
+      return undefined;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = canScroll ? previousBodyOverflow : "hidden";
+    document.documentElement.style.overflow = canScroll ? previousHtmlOverflow : "hidden";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [canScroll]);
 
   useEffect(() => {
     if (screen !== "round" || roundFinished) {
@@ -327,6 +347,7 @@ export default function App() {
           style={styles.keyboard}
         >
           <ScrollView
+            ref={screenScrollRef}
             key={screen}
             contentContainerStyle={styles.scrollContent}
             bounces={canScroll}
@@ -334,7 +355,9 @@ export default function App() {
             scrollEnabled={canScroll}
             showsVerticalScrollIndicator={false}
           >
-            {screen !== "home" ? <BackButton onPress={() => setScreen("home")} /> : null}
+            {screen !== "home" && screen !== "round" ? (
+              <BackButton onPress={() => setScreen("home")} />
+            ) : null}
 
             {screen === "home" ? (
               <View style={styles.homeScreen}>
@@ -678,6 +701,7 @@ export default function App() {
 
             {screen === "round" ? (
               <View style={styles.roundScreen}>
+                <BackButton onPress={() => setScreen("home")} />
                 <View style={styles.roundHeader}>
                   <View>
                     <Text style={styles.sectionLabel}>Ronda {roundIndex + 1}</Text>
@@ -692,98 +716,100 @@ export default function App() {
                   <Animated.View style={[styles.timerTrackFill, { width: roundProgressWidth }]} />
                 </View>
 
-                {!roundFinished ? (
-                  <View style={styles.roundVoteBoard}>
-                    <View style={styles.questionCard}>
-                      <Text style={styles.questionEyebrow}>A mesa vota</Text>
-                      <Text numberOfLines={3} style={styles.questionText}>{currentQuestion}</Text>
-                    </View>
+                <View style={styles.roundPlayArea}>
+                  {!roundFinished ? (
+                    <View style={styles.roundVoteBoard}>
+                      <View style={styles.questionCard}>
+                        <Text style={styles.questionEyebrow}>A mesa vota</Text>
+                        <Text numberOfLines={4} style={styles.questionText}>{currentQuestion}</Text>
+                      </View>
 
-                    <View style={styles.votePanel}>
-                      <View style={styles.votePanelHeader}>
-                        <Text style={styles.votePanelTitle}>Escolhe quem encaixa</Text>
-                        <Text style={styles.voteHint}>{selectedPlayer ? "voto guardado" : "toca para votar"}</Text>
-                      </View>
-                      <View style={styles.voteGrid}>
-                        {roundDemoPlayers.map((player) => {
-                          const selected = selectedPlayer === player;
-                          return (
-                            <Pressable
-                              accessibilityRole="button"
-                              disabled={roundFinished}
-                              key={player}
-                              onPress={() => setSelectedPlayer(player)}
-                              style={[styles.voteCard, selected && styles.voteCardSelected]}
-                            >
-                              <Text style={[styles.voteAvatar, selected && styles.voteAvatarSelected]}>
-                                {player.slice(0, 1)}
-                              </Text>
-                              <Text style={[styles.voteName, selected && styles.voteNameSelected]}>
-                                {player}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    </View>
-                  </View>
-                ) : (
-                  <Animated.View
-                    style={[
-                      styles.resultPanel,
-                      {
-                        opacity: resultAnim,
-                        transform: [{ translateY: resultTranslateY }, { scale: resultScale }]
-                      }
-                    ]}
-                  >
-                    <Text style={styles.resultEyebrow}>A mesa decidiu</Text>
-                    <View style={styles.resultWinnerRow}>
-                      <Text style={styles.resultWinnerAvatar}>{topResult.player.slice(0, 1)}</Text>
-                      <View style={styles.resultWinnerCopy}>
-                        <Text style={styles.resultTitle}>{topResult.player}</Text>
-                        <Text style={styles.resultText}>foi o mais votado</Text>
-                      </View>
-                      <Text style={styles.resultPercent}>{topResult.percent}%</Text>
-                    </View>
-                    <View style={styles.resultBars}>
-                      {resultRows.map((row) => (
-                        <View key={row.player} style={styles.resultBarRow}>
-                          <Text style={styles.resultBarName}>{row.player}</Text>
-                          <View style={styles.resultBarTrack}>
-                            <View
-                              style={[
-                                styles.resultBarFill,
-                                { width: `${row.percent}%` as DimensionValue }
-                              ]}
-                            />
-                          </View>
-                          <Text style={styles.resultBarPercent}>{row.percent}%</Text>
+                      <View style={styles.votePanel}>
+                        <View style={styles.votePanelHeader}>
+                          <Text style={styles.votePanelTitle}>Escolhe quem encaixa</Text>
+                          <Text style={styles.voteHint}>{selectedPlayer ? "voto guardado" : "toca para votar"}</Text>
                         </View>
-                      ))}
+                        <View style={styles.voteGrid}>
+                          {roundDemoPlayers.map((player) => {
+                            const selected = selectedPlayer === player;
+                            return (
+                              <Pressable
+                                accessibilityRole="button"
+                                disabled={roundFinished}
+                                key={player}
+                                onPress={() => setSelectedPlayer(player)}
+                                style={[styles.voteCard, selected && styles.voteCardSelected]}
+                              >
+                                <Text style={[styles.voteAvatar, selected && styles.voteAvatarSelected]}>
+                                  {player.slice(0, 1)}
+                                </Text>
+                                <Text style={[styles.voteName, selected && styles.voteNameSelected]}>
+                                  {player}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      </View>
                     </View>
-                  </Animated.View>
-                )}
+                  ) : (
+                    <Animated.View
+                      style={[
+                        styles.resultPanel,
+                        {
+                          opacity: resultAnim,
+                          transform: [{ translateY: resultTranslateY }, { scale: resultScale }]
+                        }
+                      ]}
+                    >
+                      <Text style={styles.resultEyebrow}>A mesa decidiu</Text>
+                      <View style={styles.resultWinnerRow}>
+                        <Text style={styles.resultWinnerAvatar}>{topResult.player.slice(0, 1)}</Text>
+                        <View style={styles.resultWinnerCopy}>
+                          <Text style={styles.resultTitle}>{topResult.player}</Text>
+                          <Text style={styles.resultText}>foi o mais votado</Text>
+                        </View>
+                        <Text style={styles.resultPercent}>{topResult.percent}%</Text>
+                      </View>
+                      <View style={styles.resultBars}>
+                        {resultRows.map((row) => (
+                          <View key={row.player} style={styles.resultBarRow}>
+                            <Text style={styles.resultBarName}>{row.player}</Text>
+                            <View style={styles.resultBarTrack}>
+                              <View
+                                style={[
+                                  styles.resultBarFill,
+                                  { width: `${row.percent}%` as DimensionValue }
+                                ]}
+                              />
+                            </View>
+                            <Text style={styles.resultBarPercent}>{row.percent}%</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </Animated.View>
+                  )}
 
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={!roundFinished}
-                  onPress={nextRound}
-                  style={[
-                    styles.roundNextButton,
-                    !roundFinished && styles.roundNextButtonDisabled
-                  ]}
-                >
-                  <Vote color={roundFinished ? colors.ink : colors.textSoft} size={22} strokeWidth={3} />
-                  <Text
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={!roundFinished}
+                    onPress={nextRound}
                     style={[
-                      styles.roundNextButtonText,
-                      !roundFinished && styles.roundNextButtonTextDisabled
+                      styles.roundNextButton,
+                      !roundFinished && styles.roundNextButtonDisabled
                     ]}
                   >
-                    {roundFinished ? "NOVA PERGUNTA" : "A VOTACAO FECHA SOZINHA"}
-                  </Text>
-                </Pressable>
+                    <Vote color={roundFinished ? colors.ink : colors.gold} size={24} strokeWidth={3} />
+                    <Text
+                      style={[
+                        styles.roundNextButtonText,
+                        !roundFinished && styles.roundNextButtonTextDisabled
+                      ]}
+                    >
+                      {roundFinished ? "NOVA PERGUNTA" : "A VOTACAO FECHA SOZINHA"}
+                    </Text>
+                  </Pressable>
+                </View>
               </View>
             ) : null}
           </ScrollView>
@@ -2232,9 +2258,10 @@ const styles = StyleSheet.create({
   },
   roundScreen: {
     flex: 1,
-    gap: 10,
+    flexGrow: 1,
+    gap: spacing.sm,
     justifyContent: "flex-start",
-    minHeight: 620,
+    minHeight: 748,
     paddingBottom: spacing.xs
   },
   roundHeader: {
@@ -2287,39 +2314,48 @@ const styles = StyleSheet.create({
     borderRadius: radii.full,
     height: "100%"
   },
+  roundPlayArea: {
+    flex: 1,
+    gap: spacing.md,
+    justifyContent: "space-between",
+    paddingTop: spacing.sm
+  },
   roundVoteBoard: {
-    backgroundColor: "rgba(16, 11, 5, 0.82)",
-    borderColor: "rgba(255, 194, 58, 0.42)",
+    backgroundColor: "rgba(16, 11, 5, 0.9)",
+    borderColor: "rgba(255, 194, 58, 0.58)",
     borderRadius: radii.lg,
-    borderWidth: 1,
-    gap: spacing.sm,
-    padding: spacing.sm
+    borderWidth: 2,
+    gap: spacing.md,
+    justifyContent: "space-between",
+    minHeight: 486,
+    padding: spacing.md
   },
   questionCard: {
     backgroundColor: colors.gold,
     borderColor: colors.amber,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    gap: spacing.xs,
-    minHeight: 96,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm
+    borderRadius: radii.lg,
+    borderWidth: 2,
+    gap: spacing.sm,
+    justifyContent: "center",
+    minHeight: 174,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md
   },
   questionEyebrow: {
     color: colors.inkSoft,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "900",
     textTransform: "uppercase"
   },
   questionText: {
     color: colors.ink,
-    fontSize: 21,
+    fontSize: 24,
     fontWeight: "900",
     letterSpacing: 0,
-    lineHeight: 25
+    lineHeight: 30
   },
   votePanel: {
-    gap: spacing.xs
+    gap: spacing.sm
   },
   votePanelHeader: {
     alignItems: "center",
@@ -2328,13 +2364,13 @@ const styles = StyleSheet.create({
   },
   votePanelTitle: {
     color: colors.cream,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "900",
     textTransform: "uppercase"
   },
   voteHint: {
     color: colors.amber,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "900",
     textTransform: "uppercase"
   },
@@ -2350,20 +2386,21 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     borderWidth: 1,
     flexDirection: "row",
-    gap: spacing.sm,
-    minHeight: 54,
+    gap: spacing.md,
+    minHeight: 88,
     minWidth: "47%",
-    padding: spacing.sm
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm
   },
   voteCardSelected: {
-    backgroundColor: colors.amber,
+    backgroundColor: colors.gold,
     borderColor: colors.cream
   },
   voteAvatar: {
     color: colors.gold,
-    fontSize: 24,
+    fontSize: 31,
     fontWeight: "900",
-    minWidth: 24,
+    minWidth: 35,
     textAlign: "center"
   },
   voteAvatarSelected: {
@@ -2372,7 +2409,7 @@ const styles = StyleSheet.create({
   voteName: {
     color: colors.cream,
     flex: 1,
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: "900"
   },
   voteNameSelected: {
@@ -2476,12 +2513,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.sm,
     justifyContent: "center",
-    minHeight: 52,
+    minHeight: 74,
     paddingHorizontal: spacing.md
   },
   roundNextButtonDisabled: {
-    backgroundColor: "rgba(16, 11, 5, 0.7)",
-    borderColor: colors.borderSoft
+    backgroundColor: "rgba(16, 11, 5, 0.78)",
+    borderColor: "rgba(255, 194, 58, 0.34)"
   },
   roundNextButtonText: {
     color: colors.ink,
@@ -2490,7 +2527,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase"
   },
   roundNextButtonTextDisabled: {
-    color: colors.textSoft,
-    fontSize: 12
+    color: colors.cream,
+    fontSize: 15
   }
 });
