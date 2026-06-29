@@ -116,6 +116,7 @@ export default function App() {
   const codeInputRef = useRef<TextInput>(null);
   const screenScrollRef = useRef<ScrollView>(null);
   const resultAnim = useRef(new Animated.Value(0)).current;
+  const resultBarsAnim = useRef(new Animated.Value(0)).current;
   const roundProgress = useRef(new Animated.Value(1)).current;
   const [bootComplete, setBootComplete] = useState(false);
   const [screen, setScreen] = useState<AppScreen>("home");
@@ -257,12 +258,22 @@ export default function App() {
     if (roundSecondsLeft <= 0) {
       setRoundFinished(true);
       resultAnim.setValue(0);
-      Animated.timing(resultAnim, {
-        duration: 620,
-        easing: Easing.out(Easing.back(1.7)),
-        toValue: 1,
-        useNativeDriver: true
-      }).start();
+      resultBarsAnim.setValue(0);
+      Animated.parallel([
+        Animated.timing(resultAnim, {
+          duration: 620,
+          easing: Easing.out(Easing.back(1.7)),
+          toValue: 1,
+          useNativeDriver: true
+        }),
+        Animated.timing(resultBarsAnim, {
+          delay: 180,
+          duration: 720,
+          easing: Easing.out(Easing.cubic),
+          toValue: 1,
+          useNativeDriver: true
+        })
+      ]).start();
       return undefined;
     }
 
@@ -271,7 +282,7 @@ export default function App() {
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [resultAnim, roundFinished, roundSecondsLeft, screen]);
+  }, [resultAnim, resultBarsAnim, roundFinished, roundSecondsLeft, screen]);
 
   useEffect(() => {
     if (screen !== "round") {
@@ -342,6 +353,7 @@ export default function App() {
     setRoundSecondsLeft(ROUND_SECONDS);
     setRoundFinished(false);
     resultAnim.setValue(0);
+    resultBarsAnim.setValue(0);
     roundProgress.setValue(1);
     setScreen("round");
   }
@@ -351,6 +363,7 @@ export default function App() {
     setRoundSecondsLeft(ROUND_SECONDS);
     setRoundFinished(false);
     resultAnim.setValue(0);
+    resultBarsAnim.setValue(0);
     roundProgress.setValue(1);
     setRoundIndex((value) => value + 1);
   }
@@ -786,30 +799,69 @@ export default function App() {
                         }
                       ]}
                     >
-                      <Text style={styles.resultEyebrow}>A mesa decidiu</Text>
-                      <View style={styles.resultWinnerRow}>
+                      <View style={styles.resultHeader}>
+                        <Text style={styles.resultEyebrow}>A mesa decidiu</Text>
+                        <Text style={styles.resultSubcopy}>resultado da votacao</Text>
+                      </View>
+
+                      <View style={styles.resultSpotlight}>
                         <Text style={styles.resultWinnerAvatar}>{topResult.player.slice(0, 1)}</Text>
                         <View style={styles.resultWinnerCopy}>
-                          <Text style={styles.resultTitle}>{topResult.player}</Text>
-                          <Text style={styles.resultText}>foi o mais votado</Text>
+                          <Text numberOfLines={1} style={styles.resultTitle}>{topResult.player}</Text>
+                          <Text style={styles.resultText}>mais provavel da mesa</Text>
                         </View>
-                        <Text style={styles.resultPercent}>{topResult.percent}%</Text>
+                        <View style={styles.resultPercentPill}>
+                          <Text style={styles.resultPercent}>{topResult.percent}%</Text>
+                          <Text style={styles.resultPercentLabel}>dos votos</Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.resultBarsHeader}>
+                        <Text style={styles.resultBarsTitle}>Ranking final</Text>
+                        <Text style={styles.resultBarsHint}>quem levou votos</Text>
                       </View>
                       <View style={styles.resultBars}>
-                        {resultRows.map((row) => (
-                          <View key={row.player} style={styles.resultBarRow}>
-                            <Text style={styles.resultBarName}>{row.player}</Text>
-                            <View style={styles.resultBarTrack}>
-                              <View
-                                style={[
-                                  styles.resultBarFill,
-                                  { width: `${row.percent}%` as DimensionValue }
-                                ]}
-                              />
-                            </View>
-                            <Text style={styles.resultBarPercent}>{row.percent}%</Text>
-                          </View>
-                        ))}
+                        {resultRows.map((row, index) => {
+                          const rowOpacity = resultBarsAnim.interpolate({
+                            inputRange: [0, Math.min(0.86, 0.18 + index * 0.14), 1],
+                            outputRange: [0, 0, 1],
+                            extrapolate: "clamp"
+                          });
+                          const rowTranslateY = resultBarsAnim.interpolate({
+                            inputRange: [0, Math.min(0.86, 0.18 + index * 0.14), 1],
+                            outputRange: [12, 12, 0],
+                            extrapolate: "clamp"
+                          });
+
+                          return (
+                            <Animated.View
+                              key={row.player}
+                              style={[
+                                styles.resultBarRow,
+                                index === 0 && styles.resultBarRowTop,
+                                {
+                                  opacity: rowOpacity,
+                                  transform: [{ translateY: rowTranslateY }]
+                                }
+                              ]}
+                            >
+                              <View style={styles.resultBarNameWrap}>
+                                <Text style={styles.resultBarInitial}>{row.player.slice(0, 1)}</Text>
+                                <Text numberOfLines={1} style={styles.resultBarName}>{row.player}</Text>
+                              </View>
+                              <View style={styles.resultBarTrack}>
+                                <View
+                                  style={[
+                                    styles.resultBarFill,
+                                    index === 0 && styles.resultBarFillTop,
+                                    { width: `${row.percent}%` as DimensionValue }
+                                  ]}
+                                />
+                              </View>
+                              <Text style={styles.resultBarPercent}>{row.percent}%</Text>
+                            </Animated.View>
+                          );
+                        })}
                       </View>
                     </Animated.View>
                   )}
@@ -2465,10 +2517,15 @@ const styles = StyleSheet.create({
     borderColor: colors.gold,
     borderRadius: radii.lg,
     borderWidth: 2,
+    flex: 1,
     gap: spacing.md,
-    justifyContent: "center",
-    minHeight: 410,
-    padding: spacing.lg
+    justifyContent: "space-between",
+    minHeight: 420,
+    padding: spacing.md
+  },
+  resultHeader: {
+    alignItems: "center",
+    gap: 2
   },
   resultEyebrow: {
     color: colors.gold,
@@ -2477,10 +2534,25 @@ const styles = StyleSheet.create({
     textAlign: "center",
     textTransform: "uppercase"
   },
-  resultWinnerRow: {
+  resultSubcopy: {
+    color: colors.textSoft,
+    fontSize: 11,
+    fontWeight: "900",
+    opacity: 0.82,
+    textAlign: "center",
+    textTransform: "uppercase"
+  },
+  resultSpotlight: {
     alignItems: "center",
+    backgroundColor: "rgba(255, 194, 58, 0.12)",
+    borderColor: "rgba(255, 194, 58, 0.42)",
+    borderRadius: radii.lg,
+    borderWidth: 1,
     flexDirection: "row",
-    gap: spacing.sm
+    gap: spacing.sm,
+    minHeight: 132,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md
   },
   resultWinnerAvatar: {
     backgroundColor: colors.gold,
@@ -2488,22 +2560,23 @@ const styles = StyleSheet.create({
     borderRadius: radii.full,
     borderWidth: 1,
     color: colors.ink,
-    fontSize: 35,
+    fontSize: 38,
     fontWeight: "900",
-    height: 68,
-    lineHeight: 68,
+    height: 74,
+    lineHeight: 74,
     overflow: "hidden",
     textAlign: "center",
-    width: 68
+    width: 74
   },
   resultWinnerCopy: {
-    flex: 1
+    flex: 1,
+    minWidth: 0
   },
   resultTitle: {
     color: colors.cream,
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: "900",
-    lineHeight: 32
+    lineHeight: 34
   },
   resultText: {
     color: colors.textSoft,
@@ -2512,25 +2585,83 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     textTransform: "uppercase"
   },
+  resultPercentPill: {
+    alignItems: "center",
+    backgroundColor: "rgba(16, 11, 5, 0.54)",
+    borderColor: "rgba(255, 242, 200, 0.24)",
+    borderRadius: radii.md,
+    borderWidth: 1,
+    minWidth: 78,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm
+  },
   resultPercent: {
     color: colors.gold,
-    fontSize: 42,
+    fontSize: 29,
     fontWeight: "900",
-    lineHeight: 46
+    lineHeight: 32
+  },
+  resultPercentLabel: {
+    color: colors.cream,
+    fontSize: 10,
+    fontWeight: "900",
+    lineHeight: 13,
+    textTransform: "uppercase"
+  },
+  resultBarsHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between"
+  },
+  resultBarsTitle: {
+    color: colors.cream,
+    fontSize: 13,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  resultBarsHint: {
+    color: colors.gold,
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase"
   },
   resultBars: {
     gap: spacing.sm
   },
   resultBarRow: {
     alignItems: "center",
+    backgroundColor: "rgba(255, 245, 221, 0.055)",
+    borderColor: "rgba(255, 194, 58, 0.24)",
+    borderRadius: radii.md,
+    borderWidth: 1,
     flexDirection: "row",
-    gap: spacing.sm
+    gap: spacing.sm,
+    minHeight: 48,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs
+  },
+  resultBarRowTop: {
+    backgroundColor: "rgba(255, 194, 58, 0.13)",
+    borderColor: "rgba(255, 194, 58, 0.54)"
+  },
+  resultBarNameWrap: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing.xs,
+    width: 94
+  },
+  resultBarInitial: {
+    color: colors.gold,
+    fontSize: 18,
+    fontWeight: "900",
+    minWidth: 22,
+    textAlign: "center"
   },
   resultBarName: {
     color: colors.cream,
-    fontSize: 12,
-    fontWeight: "900",
-    width: 48
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "900"
   },
   resultBarTrack: {
     backgroundColor: "rgba(255, 245, 221, 0.1)",
@@ -2543,6 +2674,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.gold,
     borderRadius: radii.full,
     height: "100%"
+  },
+  resultBarFillTop: {
+    backgroundColor: colors.orange
   },
   resultBarPercent: {
     color: colors.gold,
