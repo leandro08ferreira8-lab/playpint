@@ -95,12 +95,17 @@ function PosterButton({ icon: Icon, label, helper, variant = "gold", onPress }: 
 }
 
 type BackButtonProps = {
+  compact?: boolean;
   onPress: () => void;
 };
 
-function BackButton({ onPress }: BackButtonProps) {
+function BackButton({ compact = false, onPress }: BackButtonProps) {
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={styles.backButton}>
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={[styles.backButton, compact && styles.backButtonCompact]}
+    >
       <ChevronLeft color={colors.gold} size={22} strokeWidth={3} />
       <Text style={styles.backButtonText}>Voltar</Text>
     </Pressable>
@@ -206,7 +211,14 @@ export default function App() {
     screenScrollRef.current?.scrollTo({ animated: false, y: 0 });
 
     if (Platform.OS === "web" && typeof window !== "undefined") {
-      window.requestAnimationFrame(() => window.scrollTo(0, 0));
+      window.requestAnimationFrame(() => {
+        window.scrollTo(0, 0);
+
+        if (typeof document !== "undefined") {
+          document.body.scrollTop = 0;
+          document.documentElement.scrollTop = 0;
+        }
+      });
     }
   }, [screen]);
 
@@ -220,6 +232,16 @@ export default function App() {
 
     document.body.style.overflow = canScroll ? previousBodyOverflow : "hidden";
     document.documentElement.style.overflow = canScroll ? previousHtmlOverflow : "hidden";
+
+    if (!canScroll) {
+      document.body.scrollTop = 0;
+      document.documentElement.scrollTop = 0;
+      window.requestAnimationFrame(() => {
+        document.body.scrollTop = 0;
+        document.documentElement.scrollTop = 0;
+        window.scrollTo(0, 0);
+      });
+    }
 
     return () => {
       document.body.style.overflow = previousBodyOverflow;
@@ -701,16 +723,16 @@ export default function App() {
 
             {screen === "round" ? (
               <View style={styles.roundScreen}>
-                <BackButton onPress={() => setScreen("home")} />
-                <View style={styles.roundHeader}>
-                  <View>
-                    <Text style={styles.sectionLabel}>Ronda {roundIndex + 1}</Text>
-                    <Text style={styles.roundHeading}>Mais provavel</Text>
-                  </View>
+                <View style={styles.roundTopBar}>
+                  <BackButton compact onPress={() => setScreen("home")} />
                   <View style={styles.timerPill}>
                     <Text style={styles.timerValue}>{roundSecondsLeft}</Text>
                     <Text style={styles.timerLabel}>seg</Text>
                   </View>
+                </View>
+                <View style={styles.roundHeader}>
+                  <Text style={styles.roundKicker}>Ronda {roundIndex + 1}</Text>
+                  <Text style={styles.roundHeading}>Mais provavel</Text>
                 </View>
                 <View style={styles.timerTrack}>
                   <Animated.View style={[styles.timerTrackFill, { width: roundProgressWidth }]} />
@@ -718,9 +740,11 @@ export default function App() {
 
                 <View style={styles.roundPlayArea}>
                   {!roundFinished ? (
-                    <View style={styles.roundVoteBoard}>
+                    <View style={styles.roundActionStack}>
                       <View style={styles.questionCard}>
-                        <Text style={styles.questionEyebrow}>A mesa vota</Text>
+                        <View style={styles.questionEyebrowPill}>
+                          <Text style={styles.questionEyebrow}>A mesa vota</Text>
+                        </View>
                         <Text numberOfLines={4} style={styles.questionText}>{currentQuestion}</Text>
                       </View>
 
@@ -1242,6 +1266,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm
+  },
+  backButtonCompact: {
+    marginBottom: 0
   },
   backButtonText: {
     color: colors.gold,
@@ -2261,20 +2288,30 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     gap: spacing.sm,
     justifyContent: "flex-start",
-    minHeight: 748,
+    minHeight: 736,
     paddingBottom: spacing.xs
   },
-  roundHeader: {
+  roundTopBar: {
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between"
   },
-  roundHeading: {
-    color: colors.cream,
-    fontSize: 29,
+  roundHeader: {
+    gap: 2
+  },
+  roundKicker: {
+    color: colors.gold,
+    fontSize: 13,
     fontWeight: "900",
     letterSpacing: 0,
-    lineHeight: 32,
+    textTransform: "uppercase"
+  },
+  roundHeading: {
+    color: colors.cream,
+    fontSize: 34,
+    fontWeight: "900",
+    letterSpacing: 0,
+    lineHeight: 37,
     textShadowColor: colors.ink,
     textShadowOffset: { width: 0, height: 3 },
     textShadowRadius: 0
@@ -2285,9 +2322,9 @@ const styles = StyleSheet.create({
     borderColor: colors.orange,
     borderRadius: radii.full,
     borderWidth: 2,
-    height: 68,
+    height: 70,
     justifyContent: "center",
-    width: 68
+    width: 70
   },
   timerValue: {
     color: colors.cream,
@@ -2316,46 +2353,53 @@ const styles = StyleSheet.create({
   },
   roundPlayArea: {
     flex: 1,
-    gap: spacing.md,
+    gap: spacing.lg,
     justifyContent: "space-between",
-    paddingTop: spacing.sm
+    paddingTop: spacing.xs
   },
-  roundVoteBoard: {
-    backgroundColor: "rgba(16, 11, 5, 0.9)",
-    borderColor: "rgba(255, 194, 58, 0.58)",
-    borderRadius: radii.lg,
-    borderWidth: 2,
-    gap: spacing.md,
-    justifyContent: "space-between",
-    minHeight: 486,
-    padding: spacing.md
+  roundActionStack: {
+    gap: spacing.md
   },
   questionCard: {
     backgroundColor: colors.gold,
-    borderColor: colors.amber,
+    borderColor: colors.cream,
     borderRadius: radii.lg,
     borderWidth: 2,
-    gap: spacing.sm,
+    gap: spacing.md,
     justifyContent: "center",
-    minHeight: 174,
+    minHeight: 188,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md
+    paddingVertical: spacing.lg
+  },
+  questionEyebrowPill: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(16, 11, 5, 0.13)",
+    borderColor: "rgba(16, 11, 5, 0.18)",
+    borderRadius: radii.full,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs
   },
   questionEyebrow: {
     color: colors.inkSoft,
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "900",
     textTransform: "uppercase"
   },
   questionText: {
     color: colors.ink,
-    fontSize: 24,
+    fontSize: 25,
     fontWeight: "900",
     letterSpacing: 0,
-    lineHeight: 30
+    lineHeight: 31
   },
   votePanel: {
-    gap: spacing.sm
+    backgroundColor: "rgba(16, 11, 5, 0.88)",
+    borderColor: "rgba(255, 194, 58, 0.42)",
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    gap: spacing.md,
+    padding: spacing.md
   },
   votePanelHeader: {
     alignItems: "center",
@@ -2377,20 +2421,21 @@ const styles = StyleSheet.create({
   voteGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: spacing.sm
+    gap: spacing.sm,
+    justifyContent: "space-between"
   },
   voteCard: {
     alignItems: "center",
-    backgroundColor: "rgba(255, 245, 221, 0.08)",
-    borderColor: "rgba(255, 194, 58, 0.34)",
+    backgroundColor: "rgba(255, 245, 221, 0.07)",
+    borderColor: "rgba(255, 194, 58, 0.3)",
     borderRadius: radii.md,
     borderWidth: 1,
     flexDirection: "row",
     gap: spacing.md,
-    minHeight: 88,
-    minWidth: "47%",
+    minHeight: 80,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm
+    paddingVertical: spacing.sm,
+    width: "48%"
   },
   voteCardSelected: {
     backgroundColor: colors.gold,
@@ -2420,12 +2465,14 @@ const styles = StyleSheet.create({
     borderColor: colors.gold,
     borderRadius: radii.lg,
     borderWidth: 2,
-    gap: spacing.sm,
-    padding: spacing.md
+    gap: spacing.md,
+    justifyContent: "center",
+    minHeight: 410,
+    padding: spacing.lg
   },
   resultEyebrow: {
     color: colors.gold,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "900",
     textAlign: "center",
     textTransform: "uppercase"
@@ -2441,22 +2488,22 @@ const styles = StyleSheet.create({
     borderRadius: radii.full,
     borderWidth: 1,
     color: colors.ink,
-    fontSize: 30,
+    fontSize: 35,
     fontWeight: "900",
-    height: 58,
-    lineHeight: 58,
+    height: 68,
+    lineHeight: 68,
     overflow: "hidden",
     textAlign: "center",
-    width: 58
+    width: 68
   },
   resultWinnerCopy: {
     flex: 1
   },
   resultTitle: {
     color: colors.cream,
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: "900",
-    lineHeight: 28
+    lineHeight: 32
   },
   resultText: {
     color: colors.textSoft,
@@ -2467,12 +2514,12 @@ const styles = StyleSheet.create({
   },
   resultPercent: {
     color: colors.gold,
-    fontSize: 34,
+    fontSize: 42,
     fontWeight: "900",
-    lineHeight: 38
+    lineHeight: 46
   },
   resultBars: {
-    gap: spacing.xs
+    gap: spacing.sm
   },
   resultBarRow: {
     alignItems: "center",
@@ -2489,7 +2536,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 245, 221, 0.1)",
     borderRadius: radii.full,
     flex: 1,
-    height: 10,
+    height: 12,
     overflow: "hidden"
   },
   resultBarFill: {
