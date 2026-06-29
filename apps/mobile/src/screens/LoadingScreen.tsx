@@ -29,6 +29,16 @@ export function LoadingScreen({ onDone }: LoadingScreenProps) {
   const doneTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
+    let bootEnded = false;
+    const finishOnce = () => {
+      if (bootEnded) {
+        return;
+      }
+
+      bootEnded = true;
+      onDone();
+    };
+
     const pulseLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, {
@@ -54,9 +64,10 @@ export function LoadingScreen({ onDone }: LoadingScreenProps) {
     });
 
     pulseLoop.start();
+    doneTimer.current = setTimeout(finishOnce, BOOT_ANIMATION_MS + BOOT_EXIT_DELAY_MS);
     bootAnimation.start(({ finished }) => {
       if (finished) {
-        doneTimer.current = setTimeout(onDone, BOOT_EXIT_DELAY_MS);
+        finishOnce();
       }
     });
 
