@@ -38,7 +38,7 @@ import type { AppScreen, IconComponent, LobbyRole } from "./src/types";
 const barBackground = require("./assets/bar-table-background.png");
 const playpintLogo = require("./assets/playpint-logo-cutout.png");
 
-const ROUND_SECONDS = 15;
+const DEFAULT_ROUND_SECONDS = 15;
 const roundDemoPlayers = ["Leo", "Santi", "Marta", "Rita"];
 
 const esTuQuestions = [
@@ -124,7 +124,7 @@ export default function App() {
   const [roomCode, setRoomCode] = useState("4829");
   const [nickname, setNickname] = useState("");
   const [lobbyRole, setLobbyRole] = useState<LobbyRole>("host");
-  const [voteSeconds, setVoteSeconds] = useState(15);
+  const [voteSeconds, setVoteSeconds] = useState(DEFAULT_ROUND_SECONDS);
   const [playerLimit, setPlayerLimit] = useState(8);
   const [selectedEsTuModes, setSelectedEsTuModes] = useState<string[]>([
     "quem-e-quem",
@@ -136,7 +136,7 @@ export default function App() {
   const [scannerLocked, setScannerLocked] = useState(false);
   const [roundIndex, setRoundIndex] = useState(0);
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
-  const [roundSecondsLeft, setRoundSecondsLeft] = useState(ROUND_SECONDS);
+  const [roundSecondsLeft, setRoundSecondsLeft] = useState(DEFAULT_ROUND_SECONDS);
   const [roundFinished, setRoundFinished] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
@@ -293,7 +293,7 @@ export default function App() {
     roundProgress.setValue(1);
 
     const progressAnimation = Animated.timing(roundProgress, {
-      duration: ROUND_SECONDS * 1000,
+      duration: voteSeconds * 1000,
       easing: Easing.linear,
       toValue: 0,
       useNativeDriver: false
@@ -304,7 +304,7 @@ export default function App() {
     return () => {
       progressAnimation.stop();
     };
-  }, [roundIndex, roundProgress, screen]);
+  }, [roundIndex, roundProgress, screen, voteSeconds]);
 
   function openLobby(role: LobbyRole) {
     setLobbyRole(role);
@@ -350,7 +350,7 @@ export default function App() {
 
   function startRound() {
     setSelectedPlayer(null);
-    setRoundSecondsLeft(ROUND_SECONDS);
+    setRoundSecondsLeft(voteSeconds);
     setRoundFinished(false);
     resultAnim.setValue(0);
     resultBarsAnim.setValue(0);
@@ -360,7 +360,7 @@ export default function App() {
 
   function nextRound() {
     setSelectedPlayer(null);
-    setRoundSecondsLeft(ROUND_SECONDS);
+    setRoundSecondsLeft(voteSeconds);
     setRoundFinished(false);
     resultAnim.setValue(0);
     resultBarsAnim.setValue(0);
@@ -642,6 +642,13 @@ export default function App() {
                       <Text style={styles.lobbyMiniLabel}>na mesa</Text>
                     </View>
                   </View>
+                  <View style={[styles.lobbyMiniCard, styles.lobbyTimeCard]}>
+                    <Vote color={colors.gold} size={25} strokeWidth={3} />
+                    <View style={styles.lobbyMiniCopy}>
+                      <Text style={styles.lobbyMiniValue}>{voteSeconds}s</Text>
+                      <Text style={styles.lobbyMiniLabel}>por ronda</Text>
+                    </View>
+                  </View>
                   <Pressable
                     accessibilityRole="button"
                     onPress={() => setQrModalOpen(true)}
@@ -728,7 +735,7 @@ export default function App() {
                 <PosterButton
                   icon={CirclePlay}
                   label={lobbyRole === "host" ? "COMECAR RONDA" : "TESTAR RONDA"}
-                  helper={lobbyRole === "host" ? "host inicia quando todos estiverem prontos" : "mock local ate ligarmos multiplayer"}
+                  helper={lobbyRole === "host" ? `${voteSeconds}s por pergunta - host inicia` : "mock local ate ligarmos multiplayer"}
                   onPress={startRound}
                 />
               </View>
@@ -1838,6 +1845,10 @@ const styles = StyleSheet.create({
   },
   lobbyQrCard: {
     borderColor: colors.gold
+  },
+  lobbyTimeCard: {
+    backgroundColor: "rgba(255, 194, 58, 0.1)",
+    borderColor: colors.orange
   },
   lobbyMiniCardPressed: {
     opacity: 0.82,
