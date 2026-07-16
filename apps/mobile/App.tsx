@@ -1,6 +1,6 @@
 import { StatusBar } from "expo-status-bar";
 import { CameraView, type BarcodeScanningResult, useCameraPermissions } from "expo-camera";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Easing,
@@ -16,7 +16,9 @@ import {
   Text,
   TextInput,
   type DimensionValue,
-  View
+  type StyleProp,
+  View,
+  type ViewStyle
 } from "react-native";
 import {
   Check,
@@ -49,14 +51,59 @@ const esTuQuestions = [
 ];
 
 const esTuModeOptions = [
-  { id: "quem-e-quem", title: "Quem e quem", detail: "A frase escolhe uma pessoa da mesa" },
-  { id: "mais-provavel", title: "Mais provavel", detail: "Todos votam em quem encaixa melhor" },
-  { id: "quem-nunca", title: "Quem nunca", detail: "Perguntas de confissao para o grupo" },
-  { id: "voto-relampago", title: "Voto relampago", detail: "Rondas rapidas com pouca conversa" },
-  { id: "duelo", title: "Duelo", detail: "Dois jogadores frente a frente" },
-  { id: "ranking", title: "Ranking", detail: "Ordena a mesa do mais ao menos" },
-  { id: "historias", title: "Historias", detail: "Alguem tem de contar uma historia" },
-  { id: "verdade-ou-mito", title: "Verdade ou mito", detail: "Descobre se a frase e real ou inventada" }
+  {
+    id: "quem-e-quem",
+    title: "Quem e quem",
+    detail: "A frase escolhe uma pessoa da mesa",
+    timing: "20s para escolher",
+    seconds: 20
+  },
+  {
+    id: "mais-provavel",
+    title: "Mais provavel",
+    detail: "Todos votam em quem encaixa melhor",
+    timing: "15s por voto",
+    seconds: 15
+  },
+  {
+    id: "quem-nunca",
+    title: "Quem nunca",
+    detail: "Perguntas de confissao para o grupo",
+    timing: "sem timer fixo"
+  },
+  {
+    id: "voto-relampago",
+    title: "Voto relampago",
+    detail: "Rondas rapidas com pouca conversa",
+    timing: "10s por voto",
+    seconds: 10
+  },
+  {
+    id: "duelo",
+    title: "Duelo",
+    detail: "Dois jogadores frente a frente",
+    timing: "20s por duelo",
+    seconds: 20
+  },
+  {
+    id: "ranking",
+    title: "Ranking",
+    detail: "Ordena a mesa do mais ao menos",
+    timing: "sem timer fixo"
+  },
+  {
+    id: "historias",
+    title: "Historias",
+    detail: "Alguem tem de contar uma historia",
+    timing: "tempo livre"
+  },
+  {
+    id: "verdade-ou-mito",
+    title: "Verdade ou mito",
+    detail: "Descobre se a frase e real ou inventada",
+    timing: "15s para votar",
+    seconds: 15
+  }
 ];
 
 type PosterButtonProps = {
@@ -67,16 +114,94 @@ type PosterButtonProps = {
   onPress: () => void;
 };
 
-function PosterButton({ icon: Icon, label, helper, variant = "gold", onPress }: PosterButtonProps) {
+type MotionPressableProps = {
+  activeScale?: number;
+  activeTranslateY?: number;
+  children: ReactNode;
+  containerStyle?: StyleProp<ViewStyle>;
+  disabled?: boolean;
+  onPress?: () => void;
+  style: StyleProp<ViewStyle>;
+};
+
+function MotionPressable({
+  activeScale = 0.96,
+  activeTranslateY = 3,
+  children,
+  containerStyle = styles.motionStretch,
+  disabled = false,
+  onPress,
+  style
+}: MotionPressableProps) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+
+  function pressIn() {
+    Animated.parallel([
+      Animated.timing(scale, {
+        duration: 90,
+        easing: Easing.out(Easing.quad),
+        toValue: activeScale,
+        useNativeDriver: true
+      }),
+      Animated.timing(translateY, {
+        duration: 90,
+        easing: Easing.out(Easing.quad),
+        toValue: activeTranslateY,
+        useNativeDriver: true
+      })
+    ]).start();
+  }
+
+  function pressOut() {
+    Animated.parallel([
+      Animated.spring(scale, {
+        friction: 4,
+        tension: 180,
+        toValue: 1,
+        useNativeDriver: true
+      }),
+      Animated.spring(translateY, {
+        friction: 5,
+        tension: 180,
+        toValue: 0,
+        useNativeDriver: true
+      })
+    ]).start();
+  }
+
   return (
     <Pressable
       accessibilityRole="button"
+      disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [
+      onPressIn={pressIn}
+      onPressOut={pressOut}
+      style={containerStyle}
+    >
+      <Animated.View
+        style={[
+          style,
+          {
+            opacity: disabled ? 0.58 : 1,
+            transform: [{ translateY }, { scale }]
+          }
+        ]}
+      >
+        {children}
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+function PosterButton({ icon: Icon, label, helper, variant = "gold", onPress }: PosterButtonProps) {
+  return (
+    <MotionPressable
+      onPress={onPress}
+      style={[
         styles.posterButton,
         variant === "ember" && styles.posterButtonEmber,
-        variant === "ghost" && styles.posterButtonGhost,
-        pressed && styles.posterButtonPressed
+        variant === "ghost" && styles.posterButtonGhost
       ]}
     >
       <View style={[styles.posterIcon, variant === "ember" && styles.posterIconEmber]}>
@@ -90,7 +215,7 @@ function PosterButton({ icon: Icon, label, helper, variant = "gold", onPress }: 
           {helper}
         </Text>
       </View>
-    </Pressable>
+    </MotionPressable>
   );
 }
 
@@ -101,14 +226,16 @@ type BackButtonProps = {
 
 function BackButton({ compact = false, onPress }: BackButtonProps) {
   return (
-    <Pressable
-      accessibilityRole="button"
+    <MotionPressable
+      activeScale={0.94}
+      activeTranslateY={2}
+      containerStyle={styles.motionStart}
       onPress={onPress}
       style={[styles.backButton, compact && styles.backButtonCompact]}
     >
       <ChevronLeft color={colors.gold} size={22} strokeWidth={3} />
       <Text style={styles.backButtonText}>Voltar</Text>
-    </Pressable>
+    </MotionPressable>
   );
 }
 
@@ -118,13 +245,16 @@ export default function App() {
   const resultAnim = useRef(new Animated.Value(0)).current;
   const resultBarsAnim = useRef(new Animated.Value(0)).current;
   const roundProgress = useRef(new Animated.Value(1)).current;
+  const roundIntroPulse = useRef(new Animated.Value(0)).current;
+  const roundIntroProgress = useRef(new Animated.Value(0)).current;
+  const screenOpacity = useRef(new Animated.Value(1)).current;
+  const screenTranslateY = useRef(new Animated.Value(0)).current;
   const [bootComplete, setBootComplete] = useState(false);
   const [screen, setScreen] = useState<AppScreen>("home");
   const [roomName, setRoomName] = useState("Mesa 7");
   const [roomCode, setRoomCode] = useState("4829");
   const [nickname, setNickname] = useState("");
   const [lobbyRole, setLobbyRole] = useState<LobbyRole>("host");
-  const [voteSeconds, setVoteSeconds] = useState(DEFAULT_ROUND_SECONDS);
   const [playerLimit, setPlayerLimit] = useState(8);
   const [selectedEsTuModes, setSelectedEsTuModes] = useState<string[]>([
     "quem-e-quem",
@@ -135,6 +265,7 @@ export default function App() {
   const [qrScannerOpen, setQrScannerOpen] = useState(false);
   const [scannerLocked, setScannerLocked] = useState(false);
   const [roundIndex, setRoundIndex] = useState(0);
+  const [roundIntroCount, setRoundIntroCount] = useState(3);
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [roundSecondsLeft, setRoundSecondsLeft] = useState(DEFAULT_ROUND_SECONDS);
   const [roundFinished, setRoundFinished] = useState(false);
@@ -144,6 +275,11 @@ export default function App() {
     () => esTuQuestions[roundIndex % esTuQuestions.length],
     [roundIndex]
   );
+  const currentRoundMode = useMemo(
+    () => esTuModeOptions.find((mode) => mode.id === "mais-provavel") ?? esTuModeOptions[0],
+    []
+  );
+  const currentRoundSeconds = currentRoundMode?.seconds ?? DEFAULT_ROUND_SECONDS;
   const selectedModePreview = useMemo(() => {
     const selected = esTuModeOptions.filter((mode) => selectedEsTuModes.includes(mode.id));
 
@@ -190,6 +326,18 @@ export default function App() {
     inputRange: [0, 1],
     outputRange: [22, 0]
   });
+  const roundIntroScale = roundIntroPulse.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0.92, 1.08, 1]
+  });
+  const roundIntroGlow = roundIntroPulse.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0.2, 0.48, 0.26]
+  });
+  const roundIntroProgressWidth = roundIntroProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0%", "100%"]
+  });
   const lobbyPlayers = useMemo(() => {
     if (lobbyRole === "client") {
       return [{ id: "you", name: nickname || "Tu", status: "pronto" }];
@@ -209,6 +357,23 @@ export default function App() {
     : esTuModeOptions.filter((mode) => selectedEsTuModes.includes(mode.id));
 
   useEffect(() => {
+    screenOpacity.setValue(0);
+    screenTranslateY.setValue(16);
+    Animated.parallel([
+      Animated.timing(screenOpacity, {
+        duration: 260,
+        easing: Easing.out(Easing.cubic),
+        toValue: 1,
+        useNativeDriver: true
+      }),
+      Animated.timing(screenTranslateY, {
+        duration: 320,
+        easing: Easing.out(Easing.cubic),
+        toValue: 0,
+        useNativeDriver: true
+      })
+    ]).start();
+
     screenScrollRef.current?.scrollTo({ animated: false, y: 0 });
 
     if (Platform.OS === "web" && typeof window !== "undefined") {
@@ -221,7 +386,7 @@ export default function App() {
         }
       });
     }
-  }, [screen]);
+  }, [screen, screenOpacity, screenTranslateY]);
 
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") {
@@ -293,7 +458,7 @@ export default function App() {
     roundProgress.setValue(1);
 
     const progressAnimation = Animated.timing(roundProgress, {
-      duration: voteSeconds * 1000,
+      duration: currentRoundSeconds * 1000,
       easing: Easing.linear,
       toValue: 0,
       useNativeDriver: false
@@ -304,7 +469,69 @@ export default function App() {
     return () => {
       progressAnimation.stop();
     };
-  }, [roundIndex, roundProgress, screen, voteSeconds]);
+  }, [currentRoundSeconds, roundIndex, roundProgress, screen]);
+
+  useEffect(() => {
+    if (screen !== "roundIntro") {
+      return undefined;
+    }
+
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
+    function pulseBeat() {
+      roundIntroPulse.stopAnimation();
+      roundIntroPulse.setValue(0);
+      Animated.sequence([
+        Animated.timing(roundIntroPulse, {
+          duration: 260,
+          easing: Easing.out(Easing.quad),
+          toValue: 0.5,
+          useNativeDriver: true
+        }),
+        Animated.spring(roundIntroPulse, {
+          friction: 6,
+          tension: 110,
+          toValue: 1,
+          useNativeDriver: true
+        })
+      ]).start();
+    }
+
+    setRoundIntroCount(3);
+    roundIntroProgress.stopAnimation();
+    roundIntroProgress.setValue(0);
+    Animated.timing(roundIntroProgress, {
+      duration: 3200,
+      easing: Easing.out(Easing.cubic),
+      toValue: 1,
+      useNativeDriver: false
+    }).start();
+    pulseBeat();
+
+    timers.push(
+      setTimeout(() => {
+        setRoundIntroCount(2);
+        pulseBeat();
+      }, 1000)
+    );
+    timers.push(
+      setTimeout(() => {
+        setRoundIntroCount(1);
+        pulseBeat();
+      }, 2000)
+    );
+    timers.push(
+      setTimeout(() => {
+        setScreen("round");
+      }, 3180)
+    );
+
+    return () => {
+      timers.forEach((timer) => clearTimeout(timer));
+      roundIntroPulse.stopAnimation();
+      roundIntroProgress.stopAnimation();
+    };
+  }, [roundIntroProgress, roundIntroPulse, screen]);
 
   function openLobby(role: LobbyRole) {
     setLobbyRole(role);
@@ -350,17 +577,19 @@ export default function App() {
 
   function startRound() {
     setSelectedPlayer(null);
-    setRoundSecondsLeft(voteSeconds);
+    setRoundSecondsLeft(currentRoundSeconds);
     setRoundFinished(false);
     resultAnim.setValue(0);
     resultBarsAnim.setValue(0);
+    roundIntroProgress.setValue(0);
+    setRoundIntroCount(3);
     roundProgress.setValue(1);
-    setScreen("round");
+    setScreen("roundIntro");
   }
 
   function nextRound() {
     setSelectedPlayer(null);
-    setRoundSecondsLeft(voteSeconds);
+    setRoundSecondsLeft(currentRoundSeconds);
     setRoundFinished(false);
     resultAnim.setValue(0);
     resultBarsAnim.setValue(0);
@@ -390,9 +619,18 @@ export default function App() {
             scrollEnabled={canScroll}
             showsVerticalScrollIndicator={false}
           >
-            {screen !== "home" && screen !== "round" ? (
-              <BackButton onPress={() => setScreen("home")} />
-            ) : null}
+            <Animated.View
+              style={[
+                styles.screenTransition,
+                {
+                  opacity: screenOpacity,
+                  transform: [{ translateY: screenTranslateY }]
+                }
+              ]}
+            >
+              {screen !== "home" && screen !== "roundIntro" && screen !== "round" ? (
+                <BackButton onPress={() => setScreen("home")} />
+              ) : null}
 
             {screen === "home" ? (
               <View style={styles.homeScreen}>
@@ -444,34 +682,6 @@ export default function App() {
                 <View style={styles.hostSettingsGrid}>
                   <View style={styles.hostControlPanel}>
                     <View style={styles.hostControlHeader}>
-                      <Text style={styles.hostCardLabel}>Tempo</Text>
-                      <Text style={styles.hostControlValue}>{voteSeconds}s</Text>
-                    </View>
-                    <View style={styles.hostSegmentRow}>
-                      {[10, 15, 20].map((seconds) => (
-                        <Pressable
-                          accessibilityRole="button"
-                          key={seconds}
-                          onPress={() => setVoteSeconds(seconds)}
-                          style={[
-                            styles.hostSegment,
-                            voteSeconds === seconds && styles.hostSegmentActive
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.hostSegmentText,
-                              voteSeconds === seconds && styles.hostSegmentTextActive
-                            ]}
-                          >
-                            {seconds}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </View>
-                  <View style={styles.hostControlPanel}>
-                    <View style={styles.hostControlHeader}>
                       <Text style={styles.hostCardLabel}>Jogadores</Text>
                       <Text style={styles.hostControlValue}>{playerLimit}</Text>
                     </View>
@@ -508,20 +718,20 @@ export default function App() {
                   <Text numberOfLines={1} style={styles.hostModesPreview}>
                     {selectedModePreview}
                   </Text>
-                  <Pressable
-                    accessibilityRole="button"
+                  <Text style={styles.hostModesTiming}>Cada modo tem o seu tempo.</Text>
+                  <MotionPressable
                     onPress={() => setModeMenuOpen(true)}
                     style={styles.hostModeMenuButton}
                   >
                     <SlidersHorizontal color={colors.ink} size={22} strokeWidth={3} />
                     <Text style={styles.hostModeMenuButtonText}>Escolher modos</Text>
-                  </Pressable>
+                  </MotionPressable>
                 </View>
 
                 <PosterButton
                   icon={QrCode}
                   label="ABRIR LOBBY"
-                  helper={`${voteSeconds}s - ${playerLimit} jogadores - ${selectedEsTuModes.length} modos`}
+                  helper={`${playerLimit} jogadores - ${selectedEsTuModes.length} modos`}
                   onPress={() => openLobby("host")}
                 />
               </View>
@@ -591,13 +801,9 @@ export default function App() {
                   </View>
                 </View>
 
-                <Pressable
-                  accessibilityRole="button"
+                <MotionPressable
                   onPress={openQrScanner}
-                  style={({ pressed }) => [
-                    styles.joinQrNote,
-                    pressed && styles.joinQrNotePressed
-                  ]}
+                  style={styles.joinQrNote}
                 >
                   <QrCode color={colors.gold} size={24} strokeWidth={3} />
                   <View style={styles.joinQrCopy}>
@@ -605,7 +811,7 @@ export default function App() {
                     <Text style={styles.joinQrText}>Aponta ao convite do host.</Text>
                   </View>
                   <Text style={styles.joinQrAction}>Abrir</Text>
-                </Pressable>
+                </MotionPressable>
 
                 <PosterButton
                   icon={LogIn}
@@ -642,28 +848,17 @@ export default function App() {
                       <Text style={styles.lobbyMiniLabel}>na mesa</Text>
                     </View>
                   </View>
-                  <View style={[styles.lobbyMiniCard, styles.lobbyTimeCard]}>
-                    <Vote color={colors.gold} size={25} strokeWidth={3} />
-                    <View style={styles.lobbyMiniCopy}>
-                      <Text style={styles.lobbyMiniValue}>{voteSeconds}s</Text>
-                      <Text style={styles.lobbyMiniLabel}>por ronda</Text>
-                    </View>
-                  </View>
-                  <Pressable
-                    accessibilityRole="button"
+                  <MotionPressable
+                    containerStyle={styles.motionFlex}
                     onPress={() => setQrModalOpen(true)}
-                    style={({ pressed }) => [
-                      styles.lobbyMiniCard,
-                      styles.lobbyQrCard,
-                      pressed && styles.lobbyMiniCardPressed
-                    ]}
+                    style={[styles.lobbyMiniCard, styles.lobbyQrCard]}
                   >
                     <QrCode color={colors.gold} size={25} strokeWidth={3} />
                     <View style={styles.lobbyMiniCopy}>
                       <Text style={styles.lobbyMiniValue}>QR</Text>
                       <Text style={styles.lobbyMiniLabel}>abrir convite</Text>
                     </View>
-                  </Pressable>
+                  </MotionPressable>
                 </View>
 
                 <View style={styles.playersPanel}>
@@ -719,30 +914,84 @@ export default function App() {
                     <Text numberOfLines={1} style={styles.lobbyModesText}>
                       {selectedEsTuModes.length} ativos
                     </Text>
+                    <Text style={styles.lobbyModesMeta}>tempo por modo</Text>
                   </View>
-                  <Pressable
-                    accessibilityRole="button"
+                  <MotionPressable
+                    containerStyle={styles.motionStart}
                     onPress={() => setModeMenuOpen(true)}
-                    style={({ pressed }) => [
-                      styles.lobbyModesButton,
-                      pressed && styles.lobbyModesButtonPressed
-                    ]}
+                    style={styles.lobbyModesButton}
                   >
                     <Text style={styles.lobbyModesButtonText}>Ver modos</Text>
-                  </Pressable>
+                  </MotionPressable>
                 </View>
 
                 <PosterButton
                   icon={CirclePlay}
                   label={lobbyRole === "host" ? "COMECAR RONDA" : "TESTAR RONDA"}
-                  helper={lobbyRole === "host" ? `${voteSeconds}s por pergunta - host inicia` : "mock local ate ligarmos multiplayer"}
+                  helper={lobbyRole === "host" ? "cada jogo usa o seu tempo" : "mock local ate ligarmos multiplayer"}
                   onPress={startRound}
                 />
               </View>
             ) : null}
 
-            {screen === "round" ? (
-              <View style={styles.roundScreen}>
+              {screen === "roundIntro" ? (
+                <View style={styles.roundIntroScreen}>
+                  <View style={styles.roundIntroBrand}>
+                    <Image source={playpintLogo} resizeMode="contain" style={styles.roundIntroLogo} />
+                    <Text style={styles.sectionLabel}>A ronda vai comecar</Text>
+                  </View>
+
+                  <View style={styles.roundIntroContent}>
+                    <Text style={styles.roundIntroKicker}>Ronda {roundIndex + 1}</Text>
+                    <Text style={styles.roundIntroTitle}>
+                      {currentRoundMode?.title ?? "Jogo da mesa"}
+                    </Text>
+                    <Text style={styles.roundIntroText}>
+                      Prepara a mesa. Quando chegar ao zero, todos votam.
+                    </Text>
+
+                    <View style={styles.roundIntroCountWrap}>
+                      <Animated.View
+                        pointerEvents="none"
+                        style={[
+                          styles.roundIntroPulseRing,
+                          {
+                            opacity: roundIntroGlow,
+                            transform: [{ scale: roundIntroScale }]
+                          }
+                        ]}
+                      />
+                      <Animated.View
+                        style={[
+                          styles.roundIntroCountOrb,
+                          { transform: [{ scale: roundIntroScale }] }
+                        ]}
+                      >
+                        <Text style={styles.roundIntroCount}>{roundIntroCount}</Text>
+                      </Animated.View>
+                    </View>
+
+                    <View style={styles.roundIntroTrack}>
+                      <Animated.View
+                        style={[
+                          styles.roundIntroTrackFill,
+                          { width: roundIntroProgressWidth }
+                        ]}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.roundIntroFooter}>
+                    <CirclePlay color={colors.gold} size={24} strokeWidth={3} />
+                    <Text style={styles.roundIntroFooterText}>
+                      {currentRoundSeconds}s neste modo
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
+
+              {screen === "round" ? (
+                <View style={styles.roundScreen}>
                 <View style={styles.roundTopBar}>
                   <BackButton compact onPress={() => setScreen("home")} />
                   <View style={styles.timerPill}>
@@ -873,8 +1122,7 @@ export default function App() {
                     </Animated.View>
                   )}
 
-                  <Pressable
-                    accessibilityRole="button"
+                  <MotionPressable
                     disabled={!roundFinished}
                     onPress={nextRound}
                     style={[
@@ -891,10 +1139,11 @@ export default function App() {
                     >
                       {roundFinished ? "NOVA PERGUNTA" : "A VOTACAO FECHA SOZINHA"}
                     </Text>
-                  </Pressable>
+                  </MotionPressable>
                 </View>
-              </View>
-            ) : null}
+                </View>
+              ) : null}
+            </Animated.View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -957,6 +1206,9 @@ export default function App() {
                         </Text>
                         <Text style={[styles.modeRowDetail, active && styles.modeRowDetailActive]}>
                           {mode.detail}
+                        </Text>
+                        <Text style={[styles.modeRowTiming, active && styles.modeRowTimingActive]}>
+                          {mode.timing}
                         </Text>
                       </View>
                       <View style={[styles.modeCheck, active && styles.modeCheckActive]}>
@@ -1125,6 +1377,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.md,
     paddingTop: spacing.sm
+  },
+  screenTransition: {
+    flexGrow: 1
+  },
+  motionStretch: {
+    alignSelf: "stretch"
+  },
+  motionStart: {
+    alignSelf: "flex-start"
+  },
+  motionFlex: {
+    flex: 1
   },
   homeScreen: {
     flexGrow: 1,
@@ -1721,6 +1985,12 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     lineHeight: 24
   },
+  hostModesTiming: {
+    color: colors.textSoft,
+    fontSize: 12,
+    fontWeight: "800",
+    lineHeight: 16
+  },
   hostModeMenuButton: {
     alignItems: "center",
     alignSelf: "stretch",
@@ -1845,10 +2115,6 @@ const styles = StyleSheet.create({
   },
   lobbyQrCard: {
     borderColor: colors.gold
-  },
-  lobbyTimeCard: {
-    backgroundColor: "rgba(255, 194, 58, 0.1)",
-    borderColor: colors.orange
   },
   lobbyMiniCardPressed: {
     opacity: 0.82,
@@ -2024,6 +2290,12 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     lineHeight: 18
   },
+  lobbyModesMeta: {
+    color: colors.textSoft,
+    fontSize: 10,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
   lobbyModesButton: {
     alignItems: "center",
     backgroundColor: colors.gold,
@@ -2134,6 +2406,15 @@ const styles = StyleSheet.create({
   },
   modeRowDetailActive: {
     color: colors.inkSoft
+  },
+  modeRowTiming: {
+    color: colors.gold,
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  modeRowTimingActive: {
+    color: colors.ink
   },
   modeCheck: {
     alignItems: "center",
@@ -2345,6 +2626,118 @@ const styles = StyleSheet.create({
     minHeight: 50,
     justifyContent: "center",
     marginTop: spacing.sm
+  },
+  roundIntroScreen: {
+    flex: 1,
+    flexGrow: 1,
+    gap: spacing.xl,
+    justifyContent: "center",
+    minHeight: 736,
+    paddingBottom: spacing.xl,
+    paddingTop: spacing.xl
+  },
+  roundIntroBrand: {
+    alignItems: "center",
+    gap: spacing.xs
+  },
+  roundIntroLogo: {
+    height: 92,
+    marginBottom: -12,
+    width: "78%"
+  },
+  roundIntroContent: {
+    alignItems: "center",
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg
+  },
+  roundIntroKicker: {
+    color: colors.gold,
+    fontSize: 13,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  roundIntroTitle: {
+    color: colors.cream,
+    fontSize: 36,
+    fontWeight: "900",
+    lineHeight: 40,
+    textAlign: "center",
+    textShadowColor: colors.ink,
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 0
+  },
+  roundIntroText: {
+    color: colors.cream,
+    fontSize: 14,
+    fontWeight: "800",
+    lineHeight: 19,
+    maxWidth: 270,
+    opacity: 0.9,
+    textAlign: "center",
+    textShadowColor: colors.ink,
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 0
+  },
+  roundIntroCountWrap: {
+    alignItems: "center",
+    height: 148,
+    justifyContent: "center",
+    marginVertical: spacing.sm,
+    width: 148
+  },
+  roundIntroPulseRing: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.orange,
+    borderRadius: radii.full
+  },
+  roundIntroCountOrb: {
+    alignItems: "center",
+    backgroundColor: colors.gold,
+    borderColor: colors.cream,
+    borderRadius: radii.full,
+    borderWidth: 2,
+    height: 104,
+    justifyContent: "center",
+    width: 104
+  },
+  roundIntroCount: {
+    color: colors.ink,
+    fontSize: 56,
+    fontWeight: "900",
+    lineHeight: 60
+  },
+  roundIntroTrack: {
+    alignSelf: "stretch",
+    backgroundColor: "rgba(255, 245, 221, 0.16)",
+    borderColor: "rgba(255, 194, 57, 0.34)",
+    borderRadius: radii.full,
+    borderWidth: 1,
+    height: 12,
+    maxWidth: 340,
+    overflow: "hidden"
+  },
+  roundIntroTrackFill: {
+    backgroundColor: colors.gold,
+    borderRadius: radii.full,
+    height: "100%"
+  },
+  roundIntroFooter: {
+    alignItems: "center",
+    alignSelf: "center",
+    backgroundColor: "rgba(16, 11, 5, 0.74)",
+    borderColor: colors.border,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: spacing.sm,
+    minHeight: 54,
+    paddingHorizontal: spacing.lg
+  },
+  roundIntroFooterText: {
+    color: colors.cream,
+    fontSize: 13,
+    fontWeight: "900",
+    textTransform: "uppercase"
   },
   roundScreen: {
     flex: 1,
