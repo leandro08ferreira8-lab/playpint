@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 
-export type AppScreen = "home" | "host" | "join" | "lobby" | "round";
+export type AppScreen = "home" | "host" | "join" | "lobby" | "roundIntro" | "round";
 
 export type LobbyRole = "host" | "client";
 
